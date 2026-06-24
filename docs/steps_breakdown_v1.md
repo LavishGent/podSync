@@ -146,8 +146,8 @@ Phase 5 — Transport: Protobuf Messages
  - DeltaRequest / DeltaResponse
  - PingRequest / PingResponse (node_id, addr)
  - MessageEnvelope (type enum + bytes payload — the outer frame body)
- 80. Add protoc invocation to Makefile: make proto
- 81. Run make proto — verify generated Go files appear in proto/
+ 80. Add protoc invocation to justfile: just proto
+ 81. Run just proto — verify generated Go files appear in proto/
 
 ----------------------------------------------------------------------------------------------------
 
