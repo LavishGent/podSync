@@ -6,7 +6,6 @@ kanban-plugin: board
 
 ## Ready
 
-- [ ] [[backlog/MS1-A_Repo_Storage|MS1-A: Repository Foundation & Local Storage Engine (Dev A)]]
 - [ ] [[backlog/MS1-B_Versioning_Identity|MS1-B: Logical Versioning & Node Identity (Dev B)]]
 - [ ] [[backlog/MS1-C_Codecs_Protobuf|MS1-C: Serialization & Message Definitions (Dev C)]]
 - [ ] [[backlog/MS2-A_TCP_Framing_Server|MS2-A: TCP Framing & Transport Server (Dev A)]]
@@ -24,6 +23,7 @@ kanban-plugin: board
 
 ## In Progress
 
+- [ ] [[backlog/MS1-A_Repo_Storage|MS1-A: Repository Foundation & Local Storage Engine (Dev A)]]
 
 
 ## Done
