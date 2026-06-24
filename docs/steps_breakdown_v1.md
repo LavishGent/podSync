@@ -9,7 +9,7 @@ Phase 0 — Repo Foundation
  3. Create package skeleton:
  mkdir -p internal/{storage,version,node,replication,membership,transport,entropy} pkg/podsync proto examples/local-two-node deployments/kubernetes docs
  4. Add a go.sum-friendly placeholder: create pkg/podsync/doc.go with just package podsync
- 5. Create Makefile with targets: test, race, lint, proto, build
+ 5. Create justfile with recipes: test, race, lint, proto, build
  6. Add .github/workflows/ci.yml — run go test ./... and go vet ./... on push
  7. Add README.md — one paragraph describing what PodSync is and is not
  8. Add LICENSE (MIT or Apache 2.0)
