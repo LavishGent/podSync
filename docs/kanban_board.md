@@ -7,7 +7,6 @@ kanban-plugin: board
 ## Ready
 
 - [ ] [[backlog/MS1-B_Versioning_Identity|MS1-B: Logical Versioning & Node Identity (Dev B)]]
-- [ ] [[backlog/MS1-C_Codecs_Protobuf|MS1-C: Serialization & Message Definitions (Dev C)]]
 - [ ] [[backlog/MS2-A_TCP_Framing_Server|MS2-A: TCP Framing & Transport Server (Dev A)]]
 - [ ] [[backlog/MS2-B_Membership_Discovery|MS2-B: Membership Registry & Static Discovery (Dev B)]]
 - [ ] [[backlog/MS2-C_Replication_Buffers|MS2-C: Replication Buffer & Deduplication (Dev C)]]
@@ -23,10 +22,11 @@ kanban-plugin: board
 
 ## In Progress
 
-- [ ] [[backlog/MS1-A_Repo_Storage|MS1-A: Repository Foundation & Local Storage Engine (Dev A)]]
-
+- [ ] [[backlog/MS1-C_Codecs_Protobuf|MS1-C: Serialization & Message Definitions (Dev C)]] *(wire codec layer complete: `internal/codec`, `proto/wire.proto`; remaining: JSONCodec, BytesCodec, full proto message suite)*
 
 ## Done
+
+- [x] [[backlog/MS1-A_Repo_Storage|MS1-A: Repository Foundation & Local Storage Engine (Dev A)]]
 
 
 

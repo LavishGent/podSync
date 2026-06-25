@@ -3,12 +3,48 @@
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
 
 ## Overview
-Implement the value serialization codecs (JSON and Bytes) and define the Google Protobuf message schemas for peer-to-peer communication. Establish Makefile commands for compiling the `.proto` schemas into Go code.
+Implement the value serialization codecs (JSON and Bytes) and define the Google Protobuf message schemas for peer-to-peer communication. Establish Makefile commands for compiling the `.proto` schemas into Go code. Also implements the wire codec layer (`internal/codec`) which serializes and compresses entries for the replication transport path using protobuf + snappy.
 
 - **Milestone**: 1 (Foundations & Core Engines)
 - **Track**: C (Developer C)
-- **Status**: Ready
+- **Status**: In Progress (wire codec layer complete; JSONCodec/BytesCodec/full proto suite pending)
 - **Dependencies**: None
+
+## Implementation Progress
+
+### ✅ Wire Codec Layer (complete)
+- `proto/wire.proto` — `WireEntry` message definition
+- `proto/wire.pb.go` — generated Go bindings
+- `internal/codec/codec.go` — `WireEntry` Go struct, `Codec` interface, `snappyProtoCodec` impl (proto marshal → snappy compress), decompression bomb guard (`maxDecompressedSize = 4 MiB`)
+- `internal/codec/codec_test.go` — 6 tests passing, race-clean
+- `internal/codec/bench_test.go` — `BenchmarkEncode` (~254 ns/op) + `BenchmarkDecode` (~208 ns/op)
+- Spec: `docs/superpowers/specs/2026-06-25-wire-codec-design.md`
+
+### ⏳ Remaining
+- `JSONCodec[V any]` and `BytesCodec` in `internal/codec`
+- Full proto message suite (`Mutation`, `Ack`, `SnapshotRequest/Response`, `DigestRequest/Response`, `DeltaRequest/Response`, `PingRequest/Response`, `MessageEnvelope`) in `proto/podsync.proto`
+- Export codecs from `pkg/podsync`
+
+## Wire Codec Design
+
+A wire codec spec was produced during MS1-A: `docs/superpowers/specs/2026-06-25-wire-codec-design.md`. Key decisions recorded here:
+
+- **In-memory storage is NOT compressed.** `Entry[V any]` stores native Go values. This preserves the sub-microsecond read path.
+- **Compression lives on the wire only.** Entries are serialized + compressed when sent to peers (replication, MS2+) and decompressed + deserialized on receipt.
+- **Serialization:** protobuf. A `WireEntry` message is defined in `proto/wire.proto` (in addition to the other messages below).
+- **Compression:** snappy (`github.com/golang/snappy`). Fast (300+ MB/s), low CPU, pure Go. Chosen over zstd for simplicity; swappable via the `Codec` interface.
+- **`internal/codec`** exposes a `Codec` interface with `Encode(WireEntry) ([]byte, error)` and `Decode([]byte) (WireEntry, error)`. `WireEntry` is a non-generic Go struct with `Key []byte`, `Value []byte`, `ExpiresAt int64`, `Deleted bool`, `Version uint64`. Value serialization of `V` is the caller's responsibility.
+
+### `proto/wire.proto` — WireEntry message
+```protobuf
+message WireEntry {
+  bytes  key        = 1;
+  bytes  value      = 2;
+  int64  expires_at = 3;
+  bool   deleted    = 4;
+  uint64 version    = 5;
+}
+```
 
 ## Phase Reference
 This ticket implements:
