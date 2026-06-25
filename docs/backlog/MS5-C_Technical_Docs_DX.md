@@ -1,16 +1,18 @@
 # MS5-C: Technical Documentation & DX
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Complete the developer documentation suite to ensure high maintainability and onboarding clarity. Write architecture guides, conflict resolution deep-dives, bootstrap lifecycle documentation, and detailed cluster failure modes. Perform final code health checks.
 
 - **Milestone**: 5 (Production Readiness)
 - **Track**: C (Developer C)
 - **Status**: Ready
-- **Dependencies**: MS4-B (Public API assembly), MS4-C (K8s demo), MS5-A (Chaos tests)
+- **Dependencies**: [[MS4-B_Public_API_Assembly|MS4-B]], [[MS4-C_Kubernetes_Demo|MS4-C]], [[MS5-A_Chaos_Perf_Testing|MS5-A]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 16 — Developer Experience](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L379-L388) (Steps 217–223)
+- [[steps_breakdown_v1#Phase 16 — Developer Experience|Phase 16 — Developer Experience]] (Steps 217–223)
 
 ## Detailed Steps
 

@@ -1,16 +1,18 @@
 # MS4-B: Public API Assembly & Demos
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Assemble all internal packages (Storage, Versioning, Node ID, Transport, Replication, Membership, Hydration, Entropy) into a clean public-facing API (`Cache[K, V]`). Create a configuration system with defaults and build a local two-node in-process demo simulating peer cluster convergence.
 
 - **Milestone**: 4 (Consistency & Deploy)
 - **Track**: B (Developer B)
 - **Status**: Ready
-- **Dependencies**: MS1-A, MS1-B, MS1-C, MS2-A, MS2-B, MS2-C, MS3-A, MS3-B, MS3-C
+- **Dependencies**: [[MS1-A_Repo_Storage|MS1-A]], [[MS1-B_Versioning_Identity|MS1-B]], [[MS1-C_Codecs_Protobuf|MS1-C]], [[MS2-A_TCP_Framing_Server|MS2-A]], [[MS2-B_Membership_Discovery|MS2-B]], [[MS2-C_Replication_Buffers|MS2-C]], [[MS3-A_Replication_Worker|MS3-A]], [[MS3-B_SWIM_Probing|MS3-B]], [[MS3-C_Hydration_Lifecycle|MS3-C]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 12 — Public API Assembly](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L303-L327) (Steps 177–189)
+- [[steps_breakdown_v1#Phase 12 — Public API Assembly|Phase 12 — Public API Assembly]] (Steps 177–189)
 
 ## Detailed Steps
 

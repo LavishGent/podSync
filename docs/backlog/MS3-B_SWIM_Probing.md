@@ -1,16 +1,18 @@
 # MS3-B: SWIM-style Active Probing
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the SWIM-style active probing loop to monitor peer health. The system will periodically ping random peers, mark non-responsive peers as "Suspect", and transition them to "Dead" if they fail to recover before a configurable timeout expires.
 
 - **Milestone**: 3 (Distributed Replication)
 - **Track**: B (Developer B)
 - **Status**: Ready
-- **Dependencies**: MS2-A (Transport), MS2-B (Membership manager)
+- **Dependencies**: [[MS2-A_TCP_Framing_Server|MS2-A]], [[MS2-B_Membership_Discovery|MS2-B]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 9 — Membership Engine](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L230-L242) (Steps 136–143: SWIM-style probe implementation)
+- [[steps_breakdown_v1#Phase 9 — Membership Engine|Phase 9 — Membership Engine]] (Steps 136–143: SWIM-style probe implementation)
 
 ## Detailed Steps
 

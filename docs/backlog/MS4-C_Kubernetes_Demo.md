@@ -1,16 +1,18 @@
 # MS4-C: Kubernetes Orchestration & Verification
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Prepare deployment manifests, headless service configurations, and HTTP wrapper endpoints for running PodSync on Kubernetes clusters. Deploy a test cluster locally using Kind (Kubernetes in Docker) to verify peer discovery, hydration, scaling up to 3 replicas, and clean scale-down peer eviction.
 
 - **Milestone**: 4 (Consistency & Deploy)
 - **Track**: C (Developer C)
 - **Status**: Ready
-- **Dependencies**: MS2-B (K8s DNS discovery), MS4-B (Public API assembly)
+- **Dependencies**: [[MS2-B_Membership_Discovery|MS2-B]], [[MS4-B_Public_API_Assembly|MS4-B]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 13 — Kubernetes Demo](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L329-L342) (Steps 190–199)
+- [[steps_breakdown_v1#Phase 13 — Kubernetes Demo|Phase 13 — Kubernetes Demo]] (Steps 190–199)
 
 ## Detailed Steps
 

@@ -1,5 +1,7 @@
 # MS1-A: Repository Foundation & Local Storage Engine
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Initialize the project structure, repository scaffolding, continuous integration config, and implement the local in-memory storage engine. This engine will support sharding, thread-safety, basic Get/Set/Delete operations, and TTL sweeping.
 
@@ -10,8 +12,8 @@ Initialize the project structure, repository scaffolding, continuous integration
 
 ## Phase Reference
 This ticket implements:
-- [Phase 0 — Repo Foundation](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L1-L13) (Steps 1–12)
-- [Phase 1 — Local Storage Engine](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L16-L68) (Steps 10–41, except versioning integration)
+- [[steps_breakdown_v1#Phase 0 — Repo Foundation|Phase 0 — Repo Foundation]] (Steps 1–12)
+- [[steps_breakdown_v1#Phase 1 — Local Storage Engine|Phase 1 — Local Storage Engine]] (Steps 10–41, except versioning integration)
 
 ## Detailed Steps
 
@@ -27,7 +29,7 @@ This ticket implements:
 7. Create `internal/storage/entry.go`:
    - Define `Entry[V any]` struct: `Value V`, `ExpiresAt int64`, `Deleted bool`.
    - Implement `IsExpired(now int64) bool` and `IsAlive(now int64) bool` (not deleted and not expired).
-   - *Note: Version field will be added by MS1-B. Define it simply for now.*
+   - *Note: Version field will be added by [[MS1-B_Versioning_Identity|MS1-B]]. Define it simply for now.*
 8. Create `internal/storage/shard.go`:
    - Define `Shard[K comparable, V any]` with `mu sync.RWMutex` and `data map[K]Entry[V]`.
    - Implement `get(key K, now int64) (V, bool)`, `set(key K, entry Entry[V])`, and `delete(key K, now int64)` (mark Deleted = true, tombstone).
@@ -44,7 +46,7 @@ This ticket implements:
    - `TestSetGet`: Verify setting and getting values works.
    - `TestDeleteGet`: Verify deleted key is missing.
    - `TestExpiredKey`: Mock time or wait to verify expired key is missing.
-   - `TestResurrectionStaleWrite`: Test that a second set works (skip/mark pending version checks, since MS1-B resolves actual resurrection protection).
+   - `TestResurrectionStaleWrite`: Test that a second set works (skip/mark pending version checks, since [[MS1-B_Versioning_Identity|MS1-B]] resolves actual resurrection protection).
    - `TestShardDeterministic`: Verify key-to-shard mapping is consistent.
    - Run concurrency test: `go test -race ./internal/storage/...` to verify safety.
 2. Create `internal/storage/bench_test.go` and implement:

@@ -30,4 +30,6 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-docs/podSync/.obsidian/workspace.json
+
+# Obsidian vault config & plugins (personal settings, bundled JS)
+docs/.obsidian/

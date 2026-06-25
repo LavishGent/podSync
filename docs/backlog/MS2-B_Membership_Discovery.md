@@ -1,16 +1,18 @@
 # MS2-B: Membership Registry & Static Discovery
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the database and manager for tracking cluster peer states (Alive, Suspect, Dead, Left) and build mechanisms to discover peers statically via config file lists, or dynamically via Kubernetes headless service DNS lookups.
 
 - **Milestone**: 2 (P2P Transport & Buffers)
 - **Track**: B (Developer B)
 - **Status**: Ready
-- **Dependencies**: MS1-B (needs Node identity structures)
+- **Dependencies**: [[MS1-B_Versioning_Identity|MS1-B]] (needs Node identity structures)
 
 ## Phase Reference
 This ticket implements:
-- [Phase 9 — Membership Engine](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L215-L230) (Steps 123–135: Registry & Discovery blocks)
+- [[steps_breakdown_v1#Phase 9 — Membership Engine|Phase 9 — Membership Engine]] (Steps 123–135: Registry & Discovery blocks)
 
 ## Detailed Steps
 

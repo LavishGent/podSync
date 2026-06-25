@@ -1,16 +1,18 @@
 # MS5-B: Observability & Metrics
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement pluggable observability mechanisms. Define standard cluster telemetry interfaces, implement a zero-cost default `NoopMetrics` engine and a `Prometheus` metrics exporter, instrument all systems (Queue, Replication, SWIM, Entropy, Hydration), and add structured `log/slog` logging.
 
 - **Milestone**: 5 (Production Readiness)
 - **Track**: B (Developer B)
 - **Status**: Ready
-- **Dependencies**: MS4-B (Public API assembly), MS3-A (Replication), MS3-B (SWIM)
+- **Dependencies**: [[MS4-B_Public_API_Assembly|MS4-B]], [[MS3-A_Replication_Worker|MS3-A]], [[MS3-B_SWIM_Probing|MS3-B]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 14 — Observability](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L344-L361) (Steps 200–205)
+- [[steps_breakdown_v1#Phase 14 — Observability|Phase 14 — Observability]] (Steps 200–205)
 
 ## Detailed Steps
 

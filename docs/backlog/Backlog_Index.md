@@ -4,6 +4,9 @@ Welcome to the PodSync Development Backlog. This backlog divides the 223 granula
 
 The work is split into three parallel, complementary tracks (Track A, Track B, and Track C) designed for a team of **3 generalist developers**. Each developer should pick up one track per milestone.
 
+> [!NOTE]
+> The [[../roadmap_v1|Roadmap]] defines 6 linear milestones with 13 sequential phases — a design-first view. This backlog reorganizes the same 223 steps (detailed in [[../steps_breakdown_v1|Granular Build Steps]]) into 5 milestones with 3 parallel developer tracks (A/B/C) — an execution-first view.
+
 ## Milestone Roadmap & Ticket Map
 
 | Milestone | Track A (Developer A) | Track B (Developer B) | Track C (Developer C) |

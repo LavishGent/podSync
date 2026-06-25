@@ -1,17 +1,19 @@
 # MS2-A: TCP Framing & Transport Server
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the custom length-prefixed TCP framing protocol for streaming protobuf envelopes, and construct the connection manager/cache for reusing sockets. Build both the `TCPTransport` and a `MockTransport` for local unit-testing.
 
 - **Milestone**: 2 (P2P Transport & Buffers)
 - **Track**: A (Developer A)
 - **Status**: Ready
-- **Dependencies**: MS1-C (needs message definitions & Makefile dependencies)
+- **Dependencies**: [[MS1-C_Codecs_Protobuf|MS1-C]] (needs message definitions & Makefile dependencies)
 
 ## Phase Reference
 This ticket implements:
-- [Phase 6 — Transport: TCP Framing](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L150-L165) (Steps 82–90)
-- [Phase 7 — Transport: Connection Manager and Server](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L168-L187) (Steps 91–102)
+- [[steps_breakdown_v1#Phase 6 — Transport: TCP Framing|Phase 6 — Transport: TCP Framing]] (Steps 82–90)
+- [[steps_breakdown_v1#Phase 7 — Transport: Connection Manager and Server|Phase 7 — Transport: Connection Manager and Server]] (Steps 91–102)
 
 ## Detailed Steps
 

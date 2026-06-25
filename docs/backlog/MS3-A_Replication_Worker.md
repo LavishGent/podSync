@@ -1,16 +1,18 @@
 # MS3-A: Replication Worker & Store Integration
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the background replication worker loop that drains the outgoing mutation queue and broadcasts writes to a random subset of healthy peers (gossip fanout). Connect the local storage engine so that operations trigger replication events, and write handler logic to apply incoming replication events.
 
 - **Milestone**: 3 (Distributed Replication)
 - **Track**: A (Developer A)
 - **Status**: Ready
-- **Dependencies**: MS2-A (Transport), MS2-B (Membership registry), MS2-C (Mutation queue & seen cache)
+- **Dependencies**: [[MS2-A_TCP_Framing_Server|MS2-A]], [[MS2-B_Membership_Discovery|MS2-B]], [[MS2-C_Replication_Buffers|MS2-C]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 8 — Replication Engine](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L196-L212) (Steps 107–110: Worker Loop; Steps 116–122: Wiring & Receiver)
+- [[steps_breakdown_v1#Phase 8 — Replication Engine|Phase 8 — Replication Engine]] (Steps 107–110: Worker Loop; Steps 116–122: Wiring & Receiver)
 
 ## Detailed Steps
 
@@ -30,7 +32,7 @@ This ticket implements:
 3. Implement incoming replication handler:
    - When the transport receives an `ApplyMutation` command:
      - Check `SeenCache` to ignore duplicate IDs.
-     - Call `Store.Set` (using LWW logical version checks from MS1-B) to apply the write or tombstone.
+     - Call `Store.Set` (using LWW logical version checks from [[MS1-B_Versioning_Identity|MS1-B]]) to apply the write or tombstone.
      - Return an `Ack` payload.
 
 ## Verification & Testing

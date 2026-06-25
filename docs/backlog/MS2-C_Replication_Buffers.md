@@ -1,16 +1,18 @@
 # MS2-C: Replication Buffer & Deduplication
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the lock-free or buffered channel-based `MutationQueue` for queuing outgoing mutations to be replicated. Build the `SeenCache` deduplication index to track incoming mutation IDs and drop duplicates, with automatic time-based eviction.
 
 - **Milestone**: 2 (P2P Transport & Buffers)
 - **Track**: C (Developer C)
 - **Status**: Ready
-- **Dependencies**: MS1-C (needs message definitions), MS1-A (storage structure dependencies)
+- **Dependencies**: [[MS1-C_Codecs_Protobuf|MS1-C]], [[MS1-A_Repo_Storage|MS1-A]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 8 — Replication Engine](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L190-L205) (Steps 103–106: Mutation Queue; Steps 111–115: Deduplication Cache)
+- [[steps_breakdown_v1#Phase 8 — Replication Engine|Phase 8 — Replication Engine]] (Steps 103–106: Mutation Queue; Steps 111–115: Deduplication Cache)
 
 ## Detailed Steps
 

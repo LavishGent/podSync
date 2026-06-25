@@ -1198,3 +1198,10 @@ Longer version:
 This positioning should guide every design decision.
 
 
+## Related Documents
+- [[steps_breakdown_v1|Granular Build Steps]]
+- [[backlog/Backlog_Index|Backlog Index]]
+- [[kanban_board|Kanban Board]]
+
+
+

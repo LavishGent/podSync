@@ -1,16 +1,18 @@
 # MS5-A: Chaos & Performance Testing
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement extensive end-to-end integration, performance, and chaos tests. Build a test suite simulating real TCP connections, node restarts, network partitions, concurrent write collisions, and replication queue overflow situations. Run benchmarks to verify p99 latency targets.
 
 - **Milestone**: 5 (Production Readiness)
 - **Track**: A (Developer A)
 - **Status**: Ready
-- **Dependencies**: MS4-B (Public API assembly), MS2-A (TCP transport)
+- **Dependencies**: [[MS4-B_Public_API_Assembly|MS4-B]], [[MS2-A_TCP_Framing_Server|MS2-A]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 15 — Performance and Chaos Testing](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L363-L377) (Steps 206–216)
+- [[steps_breakdown_v1#Phase 15 — Performance and Chaos Testing|Phase 15 — Performance and Chaos Testing]] (Steps 206–216)
 
 ## Detailed Steps
 

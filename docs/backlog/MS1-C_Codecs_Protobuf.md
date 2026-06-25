@@ -1,5 +1,7 @@
 # MS1-C: Serialization & Message Definitions
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the value serialization codecs (JSON and Bytes) and define the Google Protobuf message schemas for peer-to-peer communication. Establish Makefile commands for compiling the `.proto` schemas into Go code.
 
@@ -10,8 +12,8 @@ Implement the value serialization codecs (JSON and Bytes) and define the Google 
 
 ## Phase Reference
 This ticket implements:
-- [Phase 4 — Serialization (Codecs)](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L120-L130) (Steps 68–76)
-- [Phase 5 — Transport: Protobuf Messages](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L134-L147) (Steps 77–81)
+- [[steps_breakdown_v1#Phase 4 — Serialization (Codecs)|Phase 4 — Serialization (Codecs)]] (Steps 68–76)
+- [[steps_breakdown_v1#Phase 5 — Transport: Protobuf Messages|Phase 5 — Transport: Protobuf Messages]] (Steps 77–81)
 
 ## Detailed Steps
 
