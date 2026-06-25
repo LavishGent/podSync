@@ -1,16 +1,18 @@
 # MS3-C: Lifecycle Manager & Hydration Protocol
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the Node Lifecycle state machine to handle clean startup. New nodes entering the cluster must discover peers, request a full snapshot, apply it, catch up on delta mutations missed during snapshotting (using a watermark version), and buffer incoming writes until they transition to the "Ready" state.
 
 - **Milestone**: 3 (Distributed Replication)
 - **Track**: C (Developer C)
 - **Status**: Ready
-- **Dependencies**: MS2-A (Transport), MS2-B (Membership discovery), MS2-C (SeenCache), MS3-A (Replication handler)
+- **Dependencies**: [[MS2-A_TCP_Framing_Server|MS2-A]], [[MS2-B_Membership_Discovery|MS2-B]], [[MS2-C_Replication_Buffers|MS2-C]], [[MS3-A_Replication_Worker|MS3-A]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 10 — Hydration and Readiness](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L245-L270) (Steps 144–162)
+- [[steps_breakdown_v1#Phase 10 — Hydration and Readiness|Phase 10 — Hydration and Readiness]] (Steps 144–162)
 
 ## Detailed Steps
 

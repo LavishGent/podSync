@@ -1,17 +1,19 @@
 # MS1-B: Logical Versioning & Node Identity
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement the logical vector-like Versioning system to support Last-Write-Wins (LWW) conflict resolution across distributed nodes. Also, build the unique node identity generation and version increment counter.
 
 - **Milestone**: 1 (Foundations & Core Engines)
 - **Track**: B (Developer B)
 - **Status**: Ready
-- **Dependencies**: MS1-A (specifically the storage structures to wire in versioning)
+- **Dependencies**: [[MS1-A_Repo_Storage|MS1-A]] (specifically the storage structures to wire in versioning)
 
 ## Phase Reference
 This ticket implements:
-- [Phase 2 — Versioning and Conflict Resolution](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L71-L100) (Steps 42–58)
-- [Phase 3 — NodeID and Version Generation](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L103-L117) (Steps 59–67)
+- [[steps_breakdown_v1#Phase 2 — Versioning and Conflict Resolution|Phase 2 — Versioning and Conflict Resolution]] (Steps 42–58)
+- [[steps_breakdown_v1#Phase 3 — NodeID and Version Generation|Phase 3 — NodeID and Version Generation]] (Steps 59–67)
 
 ## Detailed Steps
 
@@ -50,7 +52,7 @@ This ticket implements:
    - Test: equal counters, higher NodeID wins.
    - Test: equal counters, equal NodeID -> no-op (idempotency).
    - Test: tombstone with higher version beats live entry with lower version, and vice-versa.
-   - Unskip and verify the resurrection stale write test from MS1-A.
+   - Unskip and verify the resurrection stale write test from [[MS1-A_Repo_Storage|MS1-A]].
 2. Create tests in `internal/node/node_test.go` (or `identity_test.go`):
    - Test: `GenerateNodeID()` returns unique values.
    - Test: `Counter.Next()` is monotonic and safe under concurrent load (`go test -race`).

@@ -1,16 +1,18 @@
 # MS4-A: Active Anti-Entropy
 
+> 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]]
+
 ## Overview
 Implement background active anti-entropy using XOR-based shard digests (similar to Merkle Trees but lightweight and partitionable by shard). Nodes will periodically compare shard digests with random peers, identify mismatched shards, request delta updates for those shards, and converge on identical state.
 
 - **Milestone**: 4 (Consistency & Deploy)
 - **Track**: A (Developer A)
 - **Status**: Ready
-- **Dependencies**: MS2-A (Transport), MS2-B (Membership manager), MS3-A (Replication)
+- **Dependencies**: [[MS2-A_TCP_Framing_Server|MS2-A]], [[MS2-B_Membership_Discovery|MS2-B]], [[MS3-A_Replication_Worker|MS3-A]]
 
 ## Phase Reference
 This ticket implements:
-- [Phase 11 — Anti-Entropy](file:///c:/Obsidian-Vaults/podSync/PodSync%20-%20Granular%20Build%20Steps.md#L273-L300) (Steps 163–176)
+- [[steps_breakdown_v1#Phase 11 — Anti-Entropy|Phase 11 — Anti-Entropy]] (Steps 163–176)
 
 ## Detailed Steps
 

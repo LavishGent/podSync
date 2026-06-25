@@ -1,8 +1,10 @@
-PodSync: Granular Build Steps
+# PodSync: Granular Build Steps
+
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 0 — Repo Foundation
+## Phase 0 — Repo Foundation
+
 
  1. Create project directory: mkdir podsync && cd podsync
  2. Initialize Go module: go mod init github.com/yourname/podsync
@@ -17,7 +19,8 @@ Phase 0 — Repo Foundation
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 1 — Local Storage Engine
+## Phase 1 — Local Storage Engine
+
 
 Entry model:
 
@@ -72,7 +75,8 @@ Benchmarks:
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 2 — Versioning and Conflict Resolution
+## Phase 2 — Versioning and Conflict Resolution
+
 
 Version type:
 
@@ -104,7 +108,8 @@ Tests:
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 3 — NodeID and Version Generation
+## Phase 3 — NodeID and Version Generation
+
 
  59. go get github.com/google/uuid
  60. Create internal/node/identity.go
@@ -121,7 +126,8 @@ Phase 3 — NodeID and Version Generation
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 4 — Serialization (Codecs)
+## Phase 4 — Serialization (Codecs)
+
 
  68. Create internal/codec/codec.go
  69. Define Codec[V any] interface { Marshal(V) ([]byte, error); Unmarshal([]byte) (V, error) }
@@ -135,7 +141,8 @@ Phase 4 — Serialization (Codecs)
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 5 — Transport: Protobuf Messages
+## Phase 5 — Transport: Protobuf Messages
+
 
  77. go get google.golang.org/protobuf
  78. Create proto/podsync.proto
@@ -151,7 +158,8 @@ Phase 5 — Transport: Protobuf Messages
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 6 — Transport: TCP Framing
+## Phase 6 — Transport: TCP Framing
+
 
  82. Create internal/transport/frame.go
  83. Define MessageType uint8 constants (one per message type from proto)
@@ -169,7 +177,8 @@ Phase 6 — Transport: TCP Framing
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 7 — Transport: Connection Manager and Server
+## Phase 7 — Transport: Connection Manager and Server
+
 
  91. Create internal/transport/transport.go — define Transport interface:
  type Transport interface {
@@ -191,7 +200,8 @@ Phase 7 — Transport: Connection Manager and Server
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 8 — Replication Engine
+## Phase 8 — Replication Engine
+
 
  103. Create internal/replication/queue.go
  104. Define MutationQueue wrapping a chan Mutation (buffered, configurable capacity)
@@ -216,7 +226,8 @@ Phase 8 — Replication Engine
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 9 — Membership Engine
+## Phase 9 — Membership Engine
+
 
  123. Create internal/membership/peer.go
  124. Define PeerState enum: Alive, Suspect, Dead, Left
@@ -246,7 +257,8 @@ Phase 9 — Membership Engine
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 10 — Hydration and Readiness
+## Phase 10 — Hydration and Readiness
+
 
  144. Create internal/hydration/lifecycle.go
  145. Define LifecycleState enum: Starting, DiscoveringPeers, Bootstrapping, ApplyingSnapshot, CatchingUp, Ready
@@ -274,7 +286,8 @@ Phase 10 — Hydration and Readiness
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 11 — Anti-Entropy
+## Phase 11 — Anti-Entropy
+
 
  163. Create internal/entropy/digest.go
  164. Implement ComputeShardDigest(shard) ShardDigest:
@@ -304,7 +317,8 @@ Phase 11 — Anti-Entropy
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 12 — Public API Assembly
+## Phase 12 — Public API Assembly
+
 
  177. Create pkg/podsync/config.go — Config struct with all tunable fields + defaults
  178. Create pkg/podsync/cache.go — Cache[K comparable, V any] struct
@@ -330,7 +344,8 @@ Phase 12 — Public API Assembly
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 13 — Kubernetes Demo
+## Phase 13 — Kubernetes Demo
+
 
  190. Create deployments/kubernetes/headless-service.yaml
  191. Create deployments/kubernetes/deployment.yaml with readiness probe on /readyz
@@ -345,7 +360,8 @@ Phase 13 — Kubernetes Demo
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 14 — Observability
+## Phase 14 — Observability
+
 
  200. Create internal/metrics/metrics.go — define all counters/gauges as interface (pluggable backend)
  201. Implement NoopMetrics (default — zero cost if user doesn't wire metrics)
@@ -364,7 +380,8 @@ Phase 14 — Observability
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 15 — Performance and Chaos Testing
+## Phase 15 — Performance and Chaos Testing
+
 
  206. Create test/integration/two_node_test.go — two real Cache instances over loopback TCP
  207. Test: write to node A, read from node B after replication delay
@@ -380,7 +397,8 @@ Phase 15 — Performance and Chaos Testing
 
 ----------------------------------------------------------------------------------------------------
 
-Phase 16 — Developer Experience
+## Phase 16 — Developer Experience
+
 
  217. Write docs/architecture.md — five internal systems + how they connect
  218. Write docs/conflict-resolution.md — LWW, logical versions, tie-breaking, tombstones
@@ -389,4 +407,11 @@ Phase 16 — Developer Experience
  221. Write docs/failure-modes.md — what happens during partition, what "eventually consistent" means in practice, tombstone GC risk
  222. Update README.md — quickstart, install, local demo, K8s demo, link to all docs
  223. Final check: go test ./..., go vet ./..., go test -race ./... all pass
+
+
+## Related Documents
+- [[roadmap_v1|Roadmap]]
+- [[backlog/Backlog_Index|Backlog Index]]
+- [[kanban_board|Kanban Board]]
+
 

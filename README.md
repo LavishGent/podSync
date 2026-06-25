@@ -212,7 +212,10 @@ podsync/
 ├── deployments/
 │   └── kubernetes/     # Headless Service manifests
 └── docs/
-    └── roadmap_v1.md   # Full design doc and phased build plan
+    ├── backlog/        # Milestone tickets (MS1-A through MS5-C) and Index
+    ├── kanban_board.md # Project kanban tracking board
+    ├── roadmap_v1.md   # Full design doc and phased build plan
+    └── steps_breakdown_v1.md # 223 granular checklist steps
 ```
 
 ---
@@ -232,7 +235,12 @@ go test -race ./...
 go test -bench=. -benchmem ./...
 ```
 
-See [docs/roadmap_v1.md](docs/roadmap_v1.md) for the full design document, architectural decisions, and phased implementation plan.
+## Documentation
+
+- **[Roadmap & Architecture Design](docs/roadmap_v1.md)**: Explains the project vision, core design decisions, conflict resolution models, and the high-level architecture.
+- **[Granular Build Steps](docs/steps_breakdown_v1.md)**: The 223 step-by-step checklist tracking execution details of every phase.
+- **[Backlog Index](docs/backlog/Backlog_Index.md)**: The master map of the 15 implementation tickets divided across 5 milestones and 3 tracks.
+- **[Kanban Board](docs/kanban_board.md)**: Visual dashboard powered by the Obsidian Kanban plugin tracking ticket status.
 
 ---
 
