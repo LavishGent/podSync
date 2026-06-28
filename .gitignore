@@ -33,3 +33,6 @@ go.work.sum
 
 # Obsidian vault config & plugins (personal settings, bundled JS)
 docs/.obsidian/
+
+# Generated protobuf files — regenerate with `just proto`
+proto/*.pb.go
