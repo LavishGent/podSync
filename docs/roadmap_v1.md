@@ -309,6 +309,26 @@ Initial codecs:
 - Protobuf-compatible bytes
 - Raw bytes
 
+### 4.11 Wire Compression: Snappy on the Replication Path
+
+In-memory storage is never compressed. `Entry[V any]` holds native Go values so reads stay sub-microsecond.
+
+Compression applies only to the replication wire path:
+
+```text
+Set(key, value) → Entry[V] in local shard map  (no compression, fast read path)
+
+Replicate to peer:
+  1. Serialize V → []byte
+  2. proto.Marshal(WireEntry{...}) → proto bytes
+  3. snappy.Encode(proto bytes) → wire frame
+  4. Send over TCP
+```
+
+**Algorithm: snappy.** ~300 MB/s encode throughput, minimal CPU, pure Go (`github.com/golang/snappy`). Chosen over gzip (too slow) and zstd (higher CPU, unnecessary for this stage). The `Codec` interface in `internal/codec` is designed so the compression backend can be swapped via configuration in a future milestone.
+
+See `docs/superpowers/specs/2026-06-25-wire-codec-design.md` for the full design.
+
 ---
 
 ## 5. Proposed Public API

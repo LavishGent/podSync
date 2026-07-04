@@ -7,8 +7,24 @@ Initialize the project structure, repository scaffolding, continuous integration
 
 - **Milestone**: 1 (Foundations & Core Engines)
 - **Track**: A (Developer A)
-- **Status**: In Progress
+- **Status**: Done
 - **Dependencies**: None
+
+## Implementation Notes
+
+Completed 2026-06-25. Design spec: `docs/superpowers/specs/2026-06-25-storage-engine-design.md`.
+
+### What Was Built
+- `internal/storage/entry.go` — `Entry[V any]` with `Value`, `ExpiresAt`, `Deleted`, `Version` (placeholder); `IsExpired` / `IsAlive` methods
+- `internal/storage/shard.go` — Unexported `shard[K,V]` with `sync.RWMutex` + map; `get` (RLock), `set`, `delete` (tombstone), `sweep` (removes expired non-tombstones)
+- `internal/storage/store.go` — `Store[K,V]` with `StoreOptions` (NumShards default 64, SweepInterval 0=disable), `StoreStats`, FNV-1a shard routing with type-switch, `Get`/`Set`/`Delete`/`Stats`/`Start`
+- `internal/storage/store_test.go` — 7 tests: `TestSetGet`, `TestDeleteGet`, `TestExpiredKey`, `TestResurrectionStaleWrite`, `TestShardDeterministic`, `TestStats`, `TestSweeper`; all pass with `-race`
+- `internal/storage/bench_test.go` — `BenchmarkSet` (~99 ns/op), `BenchmarkGet` (~139 ns/op), `BenchmarkConcurrentGet` (~38 ns/op), `BenchmarkConcurrentMixed` (~64 ns/op)
+
+### Key Design Decisions
+- Tombstones accumulate (not swept); tombstone GC deferred to MS1-B
+- `Delete` on a non-existent key is a no-op; write-before-delete ordering assumed for MS1-A (replication ordering addressed in MS2+)
+- `Start(ctx)` sweeper cannot restart after context cancellation; create a new `Store` to resume sweeping
 
 ## Phase Reference
 This ticket implements:

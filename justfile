@@ -14,7 +14,7 @@ lint:
 
 # Generate protobuf code
 proto:
-    protoc --go_out=. --go-grpc_out=. proto/*.proto
+    protoc --go_out=. --go_opt=paths=source_relative proto/*.proto
 
 # Build all packages
 build:

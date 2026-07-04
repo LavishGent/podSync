@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package podsync;
+
+option go_package = "github.com/LavishGent/podsync/proto";
+
+// WireEntry is the wire representation of a storage entry sent during replication.
+// Key and Value are raw bytes; the caller is responsible for serializing the value type V.
+message WireEntry {
+  bytes  key        = 1;
+  bytes  value      = 2;  // serialized value payload
+  int64  expires_at = 3;  // Unix nanoseconds; 0 = no expiration
+  bool   deleted    = 4;  // tombstone marker
+  uint64 version    = 5;  // placeholder; MS1-B will populate with vector clock data
+}
