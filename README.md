@@ -248,6 +248,8 @@ Ensure your `$GOPATH/bin` (or `%USERPROFILE%\go\bin` on Windows) is in your syst
 
 ### Commands
 
+These commands use `just` (https://github.com/casey/just) as a task runner; ensure it is installed before running the targets below.
+
 Before running tests, ensure you compile the protobuf messages:
 
 ```bash
