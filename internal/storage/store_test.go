@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/LavishGent/podsync/internal/clock"
 )
 
 func TestSetGet(t *testing.T) {
@@ -19,12 +21,39 @@ func TestSetGet(t *testing.T) {
 }
 
 func TestExpiredKey(t *testing.T) {
-	s := NewStore[string, string](StoreOptions{NumShards: 4})
-	past := time.Now().Add(-time.Second).UnixNano()
-	s.Set("expiring", "value", past)
+	// Use a FakeClock so we can set an exact "now" without time.Sleep.
+	clk := clock.NewFakeClock(1000) // start at t=1000 ns
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
+
+	// Key expires at t=500, which is already in the past relative to clk.Now()=1000.
+	s.Set("expiring", "value", 500)
 	_, ok := s.Get("expiring")
 	if ok {
 		t.Fatal("expected expired key to be missing")
+	}
+}
+
+func TestExpiredKeyBecomesExpired(t *testing.T) {
+	// Key starts alive, then time advances past its expiration.
+	clk := clock.NewFakeClock(100)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
+
+	s.Set("k", "v", 500) // expires at t=500
+
+	// At t=100, the key should be alive.
+	v, ok := s.Get("k")
+	if !ok {
+		t.Fatal("expected key to be alive at t=100")
+	}
+	if v != "v" {
+		t.Fatalf("got %q, want %q", v, "v")
+	}
+
+	// Advance past expiration.
+	clk.Set(501)
+	_, ok = s.Get("k")
+	if ok {
+		t.Fatal("expected key to be expired at t=501")
 	}
 }
 
@@ -78,11 +107,11 @@ func TestShardDeterministic(t *testing.T) {
 }
 
 func TestStats(t *testing.T) {
-	s := NewStore[string, string](StoreOptions{NumShards: 4})
-	past := time.Now().Add(-time.Second).UnixNano()
+	clk := clock.NewFakeClock(1000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
 
-	s.Set("live", "v", 0)
-	s.Set("expired", "v", past)
+	s.Set("live", "v", 0)      // no expiry → live
+	s.Set("expired", "v", 500) // expires at t=500, now=1000 → expired
 	s.Set("tombstone", "v", 0)
 	s.Delete("tombstone")
 
@@ -102,19 +131,23 @@ func TestStats(t *testing.T) {
 }
 
 func TestSweeper(t *testing.T) {
+	// Use FakeClock so the sweeper sees entries as expired without time.Sleep.
+	clk := clock.NewFakeClock(1000)
 	s := NewStore[string, string](StoreOptions{
 		NumShards:     4,
 		SweepInterval: 10 * time.Millisecond,
+		Clock:         clk,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s.Start(ctx)
 
-	past := time.Now().Add(-time.Second).UnixNano()
-	s.Set("expiring", "v", past)
+	// "expiring" expires at t=500 which is already past (clk=1000).
+	s.Set("expiring", "v", 500)
 	s.Set("live", "v", 0)
 
-	time.Sleep(50 * time.Millisecond) // wait for at least one sweep tick
+	// Wait for at least one sweep tick to fire.
+	time.Sleep(50 * time.Millisecond)
 
 	stats := s.Stats()
 	if stats.ExpiredKeys != 0 {
@@ -122,5 +155,36 @@ func TestSweeper(t *testing.T) {
 	}
 	if stats.LiveKeys != 1 {
 		t.Errorf("expected live key to remain, LiveKeys=%d", stats.LiveKeys)
+	}
+}
+
+func TestSweeperDoesNotSweepBeforeExpiry(t *testing.T) {
+	// Verify that the sweeper uses the clock, not wall time.
+	clk := clock.NewFakeClock(100)
+	s := NewStore[string, string](StoreOptions{
+		NumShards:     4,
+		SweepInterval: 10 * time.Millisecond,
+		Clock:         clk,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.Start(ctx)
+
+	s.Set("future", "v", 500) // not expired yet at clk=100
+
+	time.Sleep(50 * time.Millisecond) // let sweeper run
+
+	stats := s.Stats()
+	if stats.LiveKeys != 1 {
+		t.Errorf("expected key to still be live (clk=100, expires=500), LiveKeys=%d", stats.LiveKeys)
+	}
+
+	// Now advance past expiry and let sweeper run again.
+	clk.Set(501)
+	time.Sleep(50 * time.Millisecond)
+
+	stats = s.Stats()
+	if stats.ExpiredKeys != 0 {
+		t.Errorf("expected key to be swept after clock advance, ExpiredKeys=%d", stats.ExpiredKeys)
 	}
 }
