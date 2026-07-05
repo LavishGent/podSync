@@ -239,9 +239,10 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 1. Download the pre-compiled `protoc` binary from the [protobuf releases page](https://github.com/protocolbuffers/protobuf/releases) (e.g. `protoc-*-win64.zip`).
 2. Extract the archive and add the `bin/` directory to your system's `PATH`.
 3. Install the Go compiler plugin:
-```powershell
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-```
+
+    ```powershell
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+    ```
 
 Ensure your `$GOPATH/bin` (or `%USERPROFILE%\go\bin` on Windows) is in your system's `PATH` so `protoc` can locate `protoc-gen-go`.
 
