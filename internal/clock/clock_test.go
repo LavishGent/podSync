@@ -2,6 +2,7 @@ package clock
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 )
@@ -14,7 +15,6 @@ func TestSystemClockReturnsReasonableTime(t *testing.T) {
 	var clk SystemClock
 	now := clk.Now()
 	wall := time.Now().UnixNano()
-	// The two calls should be within 1 ms of each other.
 	if diff := wall - now; diff < 0 || diff > int64(time.Millisecond) {
 		t.Fatalf("SystemClock.Now() too far from time.Now(): diff=%d ns", diff)
 	}
@@ -26,8 +26,6 @@ func TestSystemClockReturnsReasonableTime(t *testing.T) {
 
 func TestCoarseClockSeedBeforeStart(t *testing.T) {
 	clk := NewCoarseClock(time.Millisecond)
-	// Even before Start, Now() should return a reasonable timestamp
-	// (seeded in the constructor).
 	now := clk.Now()
 	wall := time.Now().UnixNano()
 	if diff := wall - now; diff < 0 || diff > int64(time.Second) {
@@ -40,10 +38,9 @@ func TestCoarseClockUpdates(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	clk.Start(ctx)
-	defer clk.Stop()
+	defer clk.Close()
 
 	before := clk.Now()
-	// Sleep enough for several ticks to fire.
 	time.Sleep(10 * time.Millisecond)
 	after := clk.Now()
 
@@ -52,11 +49,14 @@ func TestCoarseClockUpdates(t *testing.T) {
 	}
 }
 
-func TestCoarseClockStopIdempotent(t *testing.T) {
+func TestCoarseClockCloseIdempotent(t *testing.T) {
 	clk := NewCoarseClock(time.Millisecond)
-	// Stop on a clock that was never started should not panic.
-	clk.Stop()
-	clk.Stop()
+	if err := clk.Close(); err != nil {
+		t.Fatalf("unexpected error closing clock: %v", err)
+	}
+	if err := clk.Close(); err != nil {
+		t.Fatalf("unexpected error closing clock second time: %v", err)
+	}
 }
 
 func TestCoarseClockStartIdempotent(t *testing.T) {
@@ -65,8 +65,8 @@ func TestCoarseClockStartIdempotent(t *testing.T) {
 	defer cancel()
 
 	clk.Start(ctx)
-	clk.Start(ctx) // second Start should be a no-op
-	clk.Stop()
+	clk.Start(ctx)
+	clk.Close()
 }
 
 // ---------------------------------------------------------------------------
@@ -93,8 +93,8 @@ func TestFakeClockAdvance(t *testing.T) {
 }
 
 func TestFakeClockImplementsClock(t *testing.T) {
-	// Compile-time check that FakeClock satisfies the Clock interface.
 	var _ Clock = (*FakeClock)(nil)
 	var _ Clock = SystemClock{}
 	var _ Clock = (*CoarseClock)(nil)
+	var _ io.Closer = (*CoarseClock)(nil)
 }

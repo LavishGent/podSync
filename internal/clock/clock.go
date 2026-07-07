@@ -48,8 +48,9 @@ func (c *CoarseClock) Start(ctx context.Context) {
 	go c.loop(ctx)
 }
 
-// Stop cancels the background goroutine and blocks until it exits.
-func (c *CoarseClock) Stop() {
+// Close stops the background ticker goroutine and blocks until it exits.
+// Implements the io.Closer interface.
+func (c *CoarseClock) Close() error {
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -58,6 +59,7 @@ func (c *CoarseClock) Stop() {
 		c.done = nil
 		c.cancel = nil
 	}
+	return nil
 }
 
 func (c *CoarseClock) loop(ctx context.Context) {

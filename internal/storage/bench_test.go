@@ -86,7 +86,7 @@ func BenchmarkGetWithSystemClock(b *testing.B) {
 func BenchmarkGetWithCoarseClock(b *testing.B) {
 	clk := clock.NewCoarseClock(time.Millisecond)
 	clk.Start(context.Background())
-	defer clk.Stop()
+	defer clk.Close()
 
 	s := NewStore[string, string](StoreOptions{
 		NumShards: 64,
@@ -122,7 +122,7 @@ func BenchmarkConcurrentGetWithSystemClock(b *testing.B) {
 func BenchmarkConcurrentGetWithCoarseClock(b *testing.B) {
 	clk := clock.NewCoarseClock(time.Millisecond)
 	clk.Start(context.Background())
-	defer clk.Stop()
+	defer clk.Close()
 
 	s := NewStore[string, string](StoreOptions{
 		NumShards: 64,
