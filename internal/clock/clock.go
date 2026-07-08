@@ -18,6 +18,10 @@ func (SystemClock) Now() int64 { return time.Now().UnixNano() }
 
 // CoarseClock caches the current time in an atomic int64, updated by a
 // background goroutine at a configurable interval (default 1 ms).
+//
+// It is "coarse" because it trades nanosecond precision for performance.
+// Reading the time is a fast atomic load (~1-2 ns), avoiding expensive system
+// clock lookups on hot paths.
 type CoarseClock struct {
 	now      atomic.Int64
 	interval time.Duration
