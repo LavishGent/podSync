@@ -74,12 +74,14 @@ func BenchmarkGetWithSystemClock(b *testing.B) {
 		NumShards: 64,
 		Clock:     clock.SystemClock{},
 	})
+	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
-		s.Set(fmt.Sprintf("key-%d", i), "value", 0)
+		keys[i] = fmt.Sprintf("key-%d", i)
+		s.Set(keys[i], "value", 0)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		s.Get(fmt.Sprintf("key-%d", i%1000))
+		s.Get(keys[i%1000])
 	}
 }
 
@@ -92,12 +94,14 @@ func BenchmarkGetWithCoarseClock(b *testing.B) {
 		NumShards: 64,
 		Clock:     clk,
 	})
+	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
-		s.Set(fmt.Sprintf("key-%d", i), "value", 0)
+		keys[i] = fmt.Sprintf("key-%d", i)
+		s.Set(keys[i], "value", 0)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		s.Get(fmt.Sprintf("key-%d", i%1000))
+		s.Get(keys[i%1000])
 	}
 }
 
@@ -106,14 +110,16 @@ func BenchmarkConcurrentGetWithSystemClock(b *testing.B) {
 		NumShards: 64,
 		Clock:     clock.SystemClock{},
 	})
+	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
-		s.Set(fmt.Sprintf("key-%d", i), "value", 0)
+		keys[i] = fmt.Sprintf("key-%d", i)
+		s.Set(keys[i], "value", 0)
 	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			s.Get(fmt.Sprintf("key-%d", i%1000))
+			s.Get(keys[i%1000])
 			i++
 		}
 	})
