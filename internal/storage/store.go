@@ -7,12 +7,15 @@ import (
 	"hash/fnv"
 	"sync"
 	"time"
+
+	"github.com/LavishGent/podsync/internal/clock"
 )
 
 // StoreOptions configures a Store.
 type StoreOptions struct {
 	NumShards     int           // defaults to 64
 	SweepInterval time.Duration // sweep expired entries
+	Clock         clock.Clock   // time source; nil defaults to SystemClock
 }
 
 // StoreStats summarizes the current state of a Store.
@@ -27,6 +30,7 @@ type StoreStats struct {
 type Store[K comparable, V any] struct {
 	shards    []shard[K, V]
 	numShards int
+	clock     clock.Clock
 	opts      StoreOptions
 	startOnce sync.Once
 }
@@ -41,9 +45,14 @@ func NewStore[K comparable, V any](opts StoreOptions) *Store[K, V] {
 	for i := range shards {
 		shards[i] = newShard[K, V]()
 	}
+	clk := opts.Clock
+	if clk == nil {
+		clk = clock.SystemClock{}
+	}
 	return &Store[K, V]{
 		shards:    shards,
 		numShards: opts.NumShards,
+		clock:     clk,
 		opts:      opts,
 	}
 }
@@ -88,7 +97,7 @@ func (s *Store[K, V]) shardFor(key K) *shard[K, V] {
 
 // Get returns the value for key, or (zero, false) if the key is missing, expired, or deleted.
 func (s *Store[K, V]) Get(key K) (V, bool) {
-	now := time.Now().UnixNano()
+	now := s.clock.Now()
 	e, ok := s.shardFor(key).get(key, now)
 	if !ok || !e.IsAlive(now) {
 		var zero V
@@ -107,13 +116,13 @@ func (s *Store[K, V]) Set(key K, value V, expiresAt int64) {
 
 // Delete soft-deletes key by marking it as a tombstone. Does not physically remove the entry.
 func (s *Store[K, V]) Delete(key K) {
-	now := time.Now().UnixNano()
+	now := s.clock.Now()
 	s.shardFor(key).delete(key, now)
 }
 
 // Stats returns a point-in-time snapshot of the store's entry counts.
 func (s *Store[K, V]) Stats() StoreStats {
-	now := time.Now().UnixNano()
+	now := s.clock.Now()
 	var stats StoreStats
 	for i := range s.shards {
 		sh := &s.shards[i]
@@ -149,7 +158,7 @@ func (s *Store[K, V]) Start(ctx context.Context) {
 			for {
 				select {
 				case <-ticker.C:
-					now := time.Now().UnixNano()
+					now := s.clock.Now()
 					for i := range s.shards {
 						s.shards[i].sweep(now)
 					}

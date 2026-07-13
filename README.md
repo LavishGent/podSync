@@ -222,18 +222,50 @@ podsync/
 
 ## Development
 
-**Requirements:** Go 1.26.3+
+### Prerequisites
+
+To generate protobuf code, you will need the Protocol Buffers compiler (`protoc`) and the Go protobuf plugin installed:
+
+#### macOS
+```bash
+# Install protoc compiler
+brew install protobuf
+
+# Install Go compiler plugin
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+```
+
+#### Windows
+1. Download the pre-compiled `protoc` binary from the [protobuf releases page](https://github.com/protocolbuffers/protobuf/releases) (e.g. `protoc-*-win64.zip`).
+2. Extract the archive and add the `bin/` directory to your system's `PATH`.
+3. Install the Go compiler plugin:
+
+    ```powershell
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+    ```
+
+Ensure your `$GOPATH/bin` (or `%USERPROFILE%\go\bin` on Windows) is in your system's `PATH` so `protoc` can locate `protoc-gen-go`.
+
+### Commands
+
+These commands use `just` (https://github.com/casey/just) as a task runner; ensure it is installed before running the targets below.
+
+Before running tests, ensure you compile the protobuf messages:
 
 ```bash
+# Generate protobuf code
+just proto
+
 # Run tests
-go test ./...
+just test
 
 # Run tests with race detector
-go test -race ./...
+just race
 
-# Run benchmarks
-go test -bench=. -benchmem ./...
+# Run linter
+just lint
 ```
+
 
 ## Documentation
 
