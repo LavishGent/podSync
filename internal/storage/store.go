@@ -11,7 +11,7 @@ import (
 	"github.com/LavishGent/podsync/internal/clock"
 )
 
-// StoreOptions configures a Store.
+// StoreOptions are configurations for a Store.
 type StoreOptions struct {
 	NumShards     int           // defaults to 64
 	SweepInterval time.Duration // sweep expired entries
@@ -20,10 +20,14 @@ type StoreOptions struct {
 
 // StoreStats summarizes the current state of a Store.
 type StoreStats struct {
-	LiveKeys     int // entries that are not deleted and not expired
-	ExpiredKeys  int // entries that are expired but not yet swept
-	Tombstones   int // entries marked as deleted (may also be expired)
-	TotalEntries int // total raw entry count across all shards
+	// LiveKeys are entries that are not deleted and not expired.
+	LiveKeys int
+	// ExpiredKeys are entries that are expired but not yet swept.
+	ExpiredKeys int
+	// Tombstones are entries marked as deleted, that may also be expired.
+	Tombstones int
+	// TotalEntries are a total raw entry count across all shards.
+	TotalEntries int
 }
 
 // Store is a generic sharded in-memory key-value store with TTL and soft-delete support.
@@ -89,7 +93,7 @@ func (s *Store[K, V]) shardFor(key K) *shard[K, V] {
 		binary.LittleEndian.PutUint64(b[:], k)
 		h.Write(b[:])
 	default:
-		h.Write([]byte(fmt.Sprintf("%v", key)))
+		fmt.Fprintf(h, "%v", key)
 	}
 	idx := h.Sum32() % uint32(s.numShards)
 	return &s.shards[idx]
@@ -114,7 +118,8 @@ func (s *Store[K, V]) Set(key K, value V, expiresAt int64) {
 	})
 }
 
-// Delete soft-deletes key by marking it as a tombstone. Does not physically remove the entry.
+// Delete soft-deletes key by marking it as a tombstone. It does not physically
+// remove the entry.
 func (s *Store[K, V]) Delete(key K) {
 	now := s.clock.Now()
 	s.shardFor(key).delete(key, now)

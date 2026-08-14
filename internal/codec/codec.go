@@ -23,7 +23,7 @@ type WireEntry struct {
 	Version   uint64
 }
 
-// Codec encodes and decodes WireEntry values to/from compressed wire bytes.
+// Codec encodes and decodes WireEntry values given wire bytes.
 type Codec interface {
 	Encode(e WireEntry) ([]byte, error)
 	Decode(b []byte) (WireEntry, error)
@@ -59,7 +59,11 @@ func (c snappyProtoCodec) Decode(b []byte) (WireEntry, error) {
 		return WireEntry{}, fmt.Errorf("codec: snappy header: %w", err)
 	}
 	if int64(decompLen) > maxDecompressedSize {
-		return WireEntry{}, fmt.Errorf("codec: decompressed size %d exceeds limit %d", decompLen, maxDecompressedSize)
+		return WireEntry{}, fmt.Errorf(
+			"codec: decompressed size %d exceeds limit %d",
+			decompLen,
+			maxDecompressedSize,
+		)
 	}
 	protoBytes, err := snappy.Decode(nil, b)
 	if err != nil {

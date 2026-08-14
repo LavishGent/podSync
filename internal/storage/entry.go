@@ -1,16 +1,22 @@
 package storage
 
-// Entry holds a single stored value with its metadata.
-// The Version field is a placeholder; MS1-B will replace it with a proper vector clock type.
+// Entry holds a single stored value along with metadata describing its current state.
+//
+// An Entry can be described as "deleted", "expired", or "alive".
 type Entry[V any] struct {
-	Value     V
-	ExpiresAt int64  // Unix nanoseconds; 0 means no expiration
-	Deleted   bool   // tombstone marker; true means logically deleted
-	Version   uint64 // placeholder for MS1-B versioning
+	Value V
+	// ExpiresAt is the time an entry expires at in unix nanoseconds. A zero value
+	// means no expiration. The type, int64, is chosen over uint64 as to ensure
+	// compatibility with the Go time API.
+	ExpiresAt int64
+	// Version is a placeholder for MS1-B versioning.
+	Version uint64
+	// Deleted is a tombstone marker. The zero value means the entry has not yet
+	// been logically deleted.
+	Deleted bool
 }
 
-// IsExpired reports whether the entry has passed its expiration time.
-// An ExpiresAt of 0 never expires.
+// IsExpired returns whether the entry has passed its expiration time.
 func (e Entry[V]) IsExpired(now int64) bool {
 	return e.ExpiresAt != 0 && now >= e.ExpiresAt
 }
