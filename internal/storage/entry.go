@@ -4,6 +4,7 @@ package storage
 //
 // An Entry can be described as "deleted", "expired", or "alive".
 type Entry[V any] struct {
+	// Value is the value an entry represents.
 	Value V
 	// ExpiresAt is the time an entry expires at in unix nanoseconds. A zero value
 	// means no expiration. The type, int64, is chosen over uint64 as to ensure

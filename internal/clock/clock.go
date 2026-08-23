@@ -17,6 +17,7 @@ var _ Clock = (*SystemClock)(nil)
 // SystemClock reads the system clock on every call via time.Now().
 type SystemClock struct{}
 
+// Now returns the current system clock time.
 func (SystemClock) Now() int64 { return time.Now().UnixNano() }
 
 var (
@@ -28,10 +29,12 @@ var (
 // default. It is safe for concurrent use.
 //
 // "Coarse" clocks trade nanosecond precision for performance. Reading the time
-// is a fast atomic load (~1-2 ns), avoiding expensive system clock lookups on
-// hot paths.
+// is a fast atomic load at around 1-2 ns, avoiding expensive system clock
+// lookups on hot paths.
 type CoarseClock struct {
-	now      atomic.Int64
+	// now represents the current clock time.
+	now atomic.Int64
+	// interval defines the interval between each tick of the clock.
 	interval time.Duration
 	cancel   context.CancelFunc
 	done     chan struct{}
@@ -52,6 +55,7 @@ func NewCoarseClock(interval time.Duration) *CoarseClock {
 	return c
 }
 
+// Now returns the current coarse clock time.
 func (c *CoarseClock) Now() int64 { return c.now.Load() }
 
 // Start launches the background ticker goroutine. Once the clock is started,
@@ -62,7 +66,7 @@ func (c *CoarseClock) Start(ctx context.Context) {
 	}
 	ctx, c.cancel = context.WithCancel(ctx)
 	c.done = make(chan struct{})
-	go c.loop(ctx)
+	go c.tick(ctx)
 }
 
 // Close stops the clock. It is a blocking call.
@@ -78,7 +82,8 @@ func (c *CoarseClock) Close() error {
 	return nil
 }
 
-func (c *CoarseClock) loop(ctx context.Context) {
+// tick ticks the clock forward in time.
+func (c *CoarseClock) tick(ctx context.Context) {
 	defer close(c.done)
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()

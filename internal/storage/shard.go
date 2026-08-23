@@ -20,14 +20,14 @@ func (s *shard[K, V]) get(key K, now int64) (Entry[V], bool) {
 	return e, ok
 }
 
-// set unconditionally writes an entry for a key.
+// set unconditionally associates an entry to a key.
 func (s *shard[K, V]) set(key K, entry Entry[V]) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data[key] = entry
 }
 
-// delete marks key as a tombstone. It is a no-op if key does not exist.
+// delete marks a key with a tombstone. It is a no-op if key does not exist.
 func (s *shard[K, V]) delete(key K, now int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

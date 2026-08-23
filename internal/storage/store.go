@@ -13,9 +13,14 @@ import (
 
 // StoreOptions are configurations for a Store.
 type StoreOptions struct {
-	NumShards     int           // defaults to 64
-	SweepInterval time.Duration // sweep expired entries
-	Clock         clock.Clock   // time source; nil defaults to SystemClock
+	// NumShards is the total number of shard buckets to allocate.
+	// The default total is 64.
+	NumShards int
+	// SweepInterval is the interval at which to sweep expired Entries.
+	SweepInterval time.Duration
+	// Clock is the time source for Store operations. By default, Clock is set to
+	// SystemClock.
+	Clock clock.Clock
 }
 
 // StoreStats summarizes the current state of a Store.
@@ -39,8 +44,7 @@ type Store[K comparable, V any] struct {
 	startOnce sync.Once
 }
 
-// NewStore creates a Store with the given options.
-// NumShards defaults to 64.
+// NewStore creates a Store given StoreOptions.
 func NewStore[K comparable, V any](opts StoreOptions) *Store[K, V] {
 	if opts.NumShards <= 0 {
 		opts.NumShards = 64
