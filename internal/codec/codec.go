@@ -9,12 +9,13 @@ import (
 	wirePb "github.com/LavishGent/podsync/proto"
 )
 
-// maxDecompressedSize is the upper bound on a single decoded wire message.
-// Protects against decompression bomb attacks from compromised peers.
-const maxDecompressedSize = 4 << 20 // 4 MiB
+// maxDecompressedSize is a 4 MiB upper-bound on a single decoded wire message,
+// protecting against decompression bomb attacks from compromised peers.
+const maxDecompressedSize = 4 << 20
 
-// WireEntry is the wire representation of a storage entry.
-// Key and Value are raw bytes; the caller is responsible for serializing the value type V.
+// WireEntry is the wire representation of a storage entry; An Entry's
+// Key and Value are serialized as raw bytes. This structure is for data entry,
+// so it does not provide means to serialize and deserialize its Key and Value.
 type WireEntry struct {
 	Key       []byte
 	Value     []byte
@@ -23,7 +24,7 @@ type WireEntry struct {
 	Version   uint64
 }
 
-// Codec encodes and decodes WireEntry values to/from compressed wire bytes.
+// Codec encodes and decodes WireEntry values given wire bytes.
 type Codec interface {
 	Encode(e WireEntry) ([]byte, error)
 	Decode(b []byte) (WireEntry, error)
@@ -36,7 +37,7 @@ func New() Codec {
 
 type snappyProtoCodec struct{}
 
-// Encode serializes e to protobuf and compresses with snappy.
+// Encode serializes a WireEntry to protobuf then compresses it with snappy.
 func (c snappyProtoCodec) Encode(e WireEntry) ([]byte, error) {
 	pb := &wirePb.WireEntry{
 		Key:       e.Key,
@@ -52,14 +53,19 @@ func (c snappyProtoCodec) Encode(e WireEntry) ([]byte, error) {
 	return snappy.Encode(nil, protoBytes), nil
 }
 
-// Decode decompresses snappy and deserializes from protobuf.
+// Decode decompresses wire bytes with snappy and then deserializes
+// the resultant protobuf.
 func (c snappyProtoCodec) Decode(b []byte) (WireEntry, error) {
 	decompLen, err := snappy.DecodedLen(b)
 	if err != nil {
 		return WireEntry{}, fmt.Errorf("codec: snappy header: %w", err)
 	}
 	if int64(decompLen) > maxDecompressedSize {
-		return WireEntry{}, fmt.Errorf("codec: decompressed size %d exceeds limit %d", decompLen, maxDecompressedSize)
+		return WireEntry{}, fmt.Errorf(
+			"codec: decompressed size %d exceeds limit %d",
+			decompLen,
+			maxDecompressedSize,
+		)
 	}
 	protoBytes, err := snappy.Decode(nil, b)
 	if err != nil {

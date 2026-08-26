@@ -2,33 +2,48 @@ package clock
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"time"
 )
 
-// Clock provides the current time as Unix nanoseconds.
+// Clock provides the current time in Unix nanoseconds.
 type Clock interface {
 	Now() int64
 }
 
+var _ Clock = (*SystemClock)(nil)
+
 // SystemClock reads the system clock on every call via time.Now().
 type SystemClock struct{}
 
+// Now returns the current system clock time.
 func (SystemClock) Now() int64 { return time.Now().UnixNano() }
 
-// CoarseClock caches the current time in an atomic int64, updated by a
-// background goroutine at a configurable interval (default 1 ms).
+var (
+	_ Clock     = (*CoarseClock)(nil)
+	_ io.Closer = (*CoarseClock)(nil)
+)
+
+// CoarseClock is a Clock that caches the current system time every 1ms by
+// default. It is safe for concurrent use.
 //
-// It is "coarse" because it trades nanosecond precision for performance.
-// Reading the time is a fast atomic load (~1-2 ns), avoiding expensive system
-// clock lookups on hot paths.
+// "Coarse" clocks trade nanosecond precision for performance. Reading the time
+// is a fast atomic load at around 1-2 ns, avoiding expensive system clock
+// lookups on hot paths.
 type CoarseClock struct {
-	now      atomic.Int64
+	// now represents the current clock time.
+	now atomic.Int64
+	// interval defines the interval between each tick of the clock.
 	interval time.Duration
 	cancel   context.CancelFunc
 	done     chan struct{}
 }
 
+// NewCoarseClock constructs a new CoarseClock. Upon instantiation, the current
+// system time is immediately stored. The interval parameter specifies how often
+// the clock should update the stored system time. The zero value is treated as
+// one millisecond.
 func NewCoarseClock(interval time.Duration) *CoarseClock {
 	if interval <= 0 {
 		interval = time.Millisecond
@@ -40,20 +55,21 @@ func NewCoarseClock(interval time.Duration) *CoarseClock {
 	return c
 }
 
+// Now returns the current coarse clock time.
 func (c *CoarseClock) Now() int64 { return c.now.Load() }
 
-// Start launches the background ticker goroutine. Only the first call has an effect.
+// Start launches the background ticker goroutine. Once the clock is started,
+// subsequent calls to Start are a no-op.
 func (c *CoarseClock) Start(ctx context.Context) {
 	if c.done != nil {
 		return
 	}
 	ctx, c.cancel = context.WithCancel(ctx)
 	c.done = make(chan struct{})
-	go c.loop(ctx)
+	go c.tick(ctx)
 }
 
-// Close stops the background ticker goroutine and blocks until it exits.
-// Implements the io.Closer interface.
+// Close stops the clock. It is a blocking call.
 func (c *CoarseClock) Close() error {
 	if c.cancel != nil {
 		c.cancel()
@@ -66,7 +82,8 @@ func (c *CoarseClock) Close() error {
 	return nil
 }
 
-func (c *CoarseClock) loop(ctx context.Context) {
+// tick ticks the clock forward in time.
+func (c *CoarseClock) tick(ctx context.Context) {
 	defer close(c.done)
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()

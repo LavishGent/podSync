@@ -11,19 +11,28 @@ import (
 	"github.com/LavishGent/podsync/internal/clock"
 )
 
-// StoreOptions configures a Store.
+// StoreOptions are configurations for a Store.
 type StoreOptions struct {
-	NumShards     int           // defaults to 64
-	SweepInterval time.Duration // sweep expired entries
-	Clock         clock.Clock   // time source; nil defaults to SystemClock
+	// NumShards is the total number of shard buckets to allocate.
+	// The default total is 64.
+	NumShards int
+	// SweepInterval is the interval at which to sweep expired Entries.
+	SweepInterval time.Duration
+	// Clock is the time source for Store operations. By default, Clock is set to
+	// SystemClock.
+	Clock clock.Clock
 }
 
 // StoreStats summarizes the current state of a Store.
 type StoreStats struct {
-	LiveKeys     int // entries that are not deleted and not expired
-	ExpiredKeys  int // entries that are expired but not yet swept
-	Tombstones   int // entries marked as deleted (may also be expired)
-	TotalEntries int // total raw entry count across all shards
+	// LiveKeys are entries that are not deleted and not expired.
+	LiveKeys int
+	// ExpiredKeys are entries that are expired but not yet swept.
+	ExpiredKeys int
+	// Tombstones are entries marked as deleted, that may also be expired.
+	Tombstones int
+	// TotalEntries are a total raw entry count across all shards.
+	TotalEntries int
 }
 
 // Store is a generic sharded in-memory key-value store with TTL and soft-delete support.
@@ -35,8 +44,7 @@ type Store[K comparable, V any] struct {
 	startOnce sync.Once
 }
 
-// NewStore creates a Store with the given options.
-// NumShards defaults to 64.
+// NewStore creates a Store given StoreOptions.
 func NewStore[K comparable, V any](opts StoreOptions) *Store[K, V] {
 	if opts.NumShards <= 0 {
 		opts.NumShards = 64
@@ -89,7 +97,7 @@ func (s *Store[K, V]) shardFor(key K) *shard[K, V] {
 		binary.LittleEndian.PutUint64(b[:], k)
 		h.Write(b[:])
 	default:
-		h.Write([]byte(fmt.Sprintf("%v", key)))
+		fmt.Fprintf(h, "%v", key)
 	}
 	idx := h.Sum32() % uint32(s.numShards)
 	return &s.shards[idx]
@@ -114,7 +122,8 @@ func (s *Store[K, V]) Set(key K, value V, expiresAt int64) {
 	})
 }
 
-// Delete soft-deletes key by marking it as a tombstone. Does not physically remove the entry.
+// Delete soft-deletes key by marking it as a tombstone. It does not physically
+// remove the entry.
 func (s *Store[K, V]) Delete(key K) {
 	now := s.clock.Now()
 	s.shardFor(key).delete(key, now)
