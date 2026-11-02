@@ -12,10 +12,6 @@ race:
 lint:
     golangci-lint run ./...
 
-# Generate protobuf code
-proto:
-    protoc --go_out=. --go_opt=paths=source_relative proto/*.proto
-
 # Build all packages
 build:
     go build ./...
