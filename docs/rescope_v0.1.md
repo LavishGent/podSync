@@ -104,7 +104,7 @@ T4's single replication loop waits for every peer before taking the next mutatio
 
 When a queue is full, the **oldest** queued mutation is dropped. The oldest mutation is the one most likely to have been overwritten by a later write or already delivered by repair. Each drop increments `Stats().Dropped`, which therefore counts per peer, not per write. When a peer leaves the peer set, its sender goroutine is cancelled and its queued mutations are discarded without counting as drops. `Close` waits until every queue is empty **and** no send is in flight, or until `ctx` is done, and only then closes the transport. T5 repair delivers anything dropped.
 
-These T4 tests, all with `transport.Memory`, replace the ticket's "Outbox overflow" test: a peer whose handler blocks until its `ctx` is done does not delay delivery to a second peer; with capacity `C`, a blocked peer, and `M` writes made after the handler has received the first one, `Dropped` is exactly `M - 1 - C` and the queue holds the newest `C`; `Close` delivers all 100 keys to every peer when each handler sleeps 20ms, so the last send is still running when its queue empties; `Close` returns once `ctx` is done when one peer is blocked. T5 adds a test that repair delivers a key evicted from a full queue.
+These T4 tests, all with `transport.Memory`, replace the ticket's "Outbox overflow" test: a peer whose handler blocks until its `ctx` is done does not delay delivery to a second peer; with capacity `C` and `RequestTimeout` longer than the test, a peer whose handler blocks on the first mutation and `M` more writes made after the handler has received it, `Dropped` is exactly `max(0, M - C)` and the queue holds the newest `C`; `Close` delivers all 100 keys to every peer when each handler sleeps 20ms, so the last send is still running when its queue empties; `Close` returns once `ctx` is done when one peer is blocked. T5 adds a test that repair delivers a key evicted from a full queue.
 
 ### A6. A departed pod's entries live until their TTL
 
@@ -121,10 +121,10 @@ One `StateResponse` carrying the whole store does not fit in a 16 MiB frame once
 - T1 adds `Store.NumShards()` and `Store.SnapshotShard(i)`.
 - T2 defines `StateRequest{Origin, Shard, NumShards, Entries}` and `StateResponse{Origin, Shard, NumShards, Entries}`. A request for a shard index the responder does not have gets an empty page.
 - The requester walks shard indexes from 0 up to the larger of its own and the responder's `NumShards`, which it learns from the first response. Every page is merged as it arrives; LWW makes partial or out-of-order pages safe.
-- Hydration: if a page fails, the requester moves to the next peer and resumes at the failed shard. A node becomes `Ready` only after it has merged every page, or when `HydrationTimeout` expires.
+- Hydration: if a page fails, the requester moves to the next peer. It resumes at the failed shard only when the new peer reports the same `NumShards`; otherwise it starts again at shard 0, because shard indexes mean different key sets under different shard counts. A node becomes `Ready` only after it has merged every page, or when `HydrationTimeout` expires.
 - `MaxStateEntries` stays the documented envelope. The requester sums the entries it received in a round and logs the envelope warning once per round if the total is over. Responders always serve every page.
 - A single page that cannot be encoded under `MaxFrameSize` fails that request with an error naming the shard. With 64 shards and FNV hashing that happens only above roughly 1 GiB of total state; fewer shards lower the ceiling proportionally, which the README states. Paging inside a shard is a v0.2 item.
-- T5's push side sends the requester's own entries for shard `i` in `StateRequest.Entries`, under the ticket's size rule. Merging pushed entries is safe whatever the responder's shard layout, so there is no shard-count check.
+- T5's push side sends the requester's own entries for shard `i` in `StateRequest.Entries` when the requester's whole store is under `MaxStateEntries / 4` entries. Merging pushed entries is safe whatever the responder's shard layout, so there is no shard-count check.
 
 T4's TCP smoke test also hydrates a node whose total state is larger than `MaxFrameSize` (for example 20k entries with 1 KiB values).
 
@@ -134,6 +134,7 @@ Store keys must be `comparable`, and `[]byte` is not, so T2's `KeyCodec` has bui
 
 ### A10. Test-plan corrections (T5, T6)
 
+- T5 over-envelope test: the requester pulls from a peer that holds `MaxStateEntries + 1` entries, and the requester logs the warning.
 - T5 tombstone tests: wait for the first `Set` to reach B, then partition **before** the `Delete` on A, and check that B still holds the old value before healing. In the past-TTL case, check that A's tombstone has been swept before healing.
 - T6 `demo-hit`: `kubectl port-forward` to a Service pins one pod, so the demo sends its requests from a pod inside the cluster through the Service and shows several distinct `X-Pod` values.
 - T6 dependency check: `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...` must print only packages under `github.com/LavishGent/podsync`.
