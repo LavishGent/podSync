@@ -23,9 +23,12 @@ type Entry[V any] struct {
 	// Deleted is a tombstone marker. The zero value means the entry has not yet
 	// been logically deleted.
 	Deleted bool
-	// DeletedAt is the local time in unix nanoseconds when a tombstone was
-	// written. Only the local tombstone sweeper reads it, so clock skew shifts
-	// GC timing and nothing else.
+	// DeletedAt is the originating node's clock in unix nanoseconds at the
+	// moment of deletion. Merge keeps it unchanged (filling it with the local
+	// time only when it is zero), so a tombstone that arrives late through
+	// replication or repair has a shorter local retention window. Only the
+	// local tombstone sweeper reads it, so clock skew shifts GC timing and
+	// nothing else.
 	DeletedAt int64
 }
 

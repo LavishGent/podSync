@@ -150,6 +150,11 @@ func (s *Store[K, V]) Delete(key K, v version.Version) bool {
 // replication, hydration, and repair all end here. e is stored unchanged, so
 // identical versions yield identical entries on every node.
 func (s *Store[K, V]) Merge(key K, e Entry[V]) bool {
+	// A tombstone with no DeletedAt would be swept on the next tick; stamp it
+	// with the local time so it keeps its version for the full window.
+	if e.Deleted && e.DeletedAt == 0 {
+		e.DeletedAt = s.clock.Now()
+	}
 	if s.shardFor(key).merge(key, e) {
 		return true
 	}
@@ -165,6 +170,18 @@ func (s *Store[K, V]) Snapshot() []KeyEntry[K, V] {
 		out = s.shards[i].snapshot(out)
 	}
 	return out
+}
+
+// NumShards returns the number of shard buckets, for paged state transfer.
+func (s *Store[K, V]) NumShards() int { return s.numShards }
+
+// SnapshotShard returns every entry in shard i, tombstones and expired entries
+// included, in no particular order. An out-of-range i returns nil.
+func (s *Store[K, V]) SnapshotShard(i int) []KeyEntry[K, V] {
+	if i < 0 || i >= len(s.shards) {
+		return nil
+	}
+	return s.shards[i].snapshot(nil)
 }
 
 // sweep removes expired entries and tombstones past TombstoneTTL.

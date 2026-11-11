@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"math"
 	"sync"
 
 	"github.com/LavishGent/podsync/internal/version"
@@ -54,10 +55,16 @@ func (s *shard[K, V]) snapshot(dst []KeyEntry[K, V]) []KeyEntry[K, V] {
 func (s *shard[K, V]) sweep(now, tombstoneTTL int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// x+tombstoneTTL <= now is x <= now-tombstoneTTL; the subtraction is
+	// saturated so a huge TTL cannot wrap and an addition cannot overflow.
+	cutoff := int64(math.MinInt64)
+	if now >= math.MinInt64+tombstoneTTL {
+		cutoff = now - tombstoneTTL
+	}
 	swept := 0
 	for k, e := range s.data {
-		if (e.Deleted && e.DeletedAt+tombstoneTTL <= now) ||
-			(!e.Deleted && e.ExpiresAt != 0 && e.ExpiresAt+tombstoneTTL <= now) {
+		if (e.Deleted && e.DeletedAt <= cutoff) ||
+			(!e.Deleted && e.ExpiresAt != 0 && e.ExpiresAt <= cutoff) {
 			delete(s.data, k)
 			swept++
 		}

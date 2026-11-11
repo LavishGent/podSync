@@ -3,9 +3,11 @@ package storage
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -394,4 +396,125 @@ func TestSweeperDoesNotSweepBeforeExpiry(t *testing.T) {
 	// Past ExpiresAt + TombstoneTTL: swept.
 	clk.Set(600)
 	waitFor(t, "key to be swept after clock advance", func() bool { return s.Stats().TotalEntries == 0 })
+}
+
+func TestSweepNeverOverflows(t *testing.T) {
+	clk := clock.NewFakeClock(1_000_000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: time.Hour})
+	s.Set("forever", "v", math.MaxInt64, ver(1, "a"))
+	s.sweep()
+	if got := len(s.Snapshot()); got != 1 {
+		t.Fatalf("entry with ExpiresAt=MaxInt64 swept, len=%d", got)
+	}
+}
+
+func TestSweepHugeTombstoneTTLKeepsFreshTombstone(t *testing.T) {
+	clk := clock.NewFakeClock(1_000_000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: math.MaxInt64})
+	s.Delete("k", ver(1, "a"))
+	s.Set("e", "v", 500, ver(1, "a"))
+	s.sweep()
+	if got := len(s.Snapshot()); got != 2 {
+		t.Fatalf("entries swept with TombstoneTTL=MaxInt64, len=%d", got)
+	}
+}
+
+func TestMergeFillsMissingDeletedAt(t *testing.T) {
+	clk := clock.NewFakeClock(5_000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: 100})
+	if !s.Merge("k", Entry[string]{Deleted: true, Version: ver(2, "a")}) {
+		t.Fatal("merge should apply")
+	}
+	if got := s.Snapshot()[0].Entry.DeletedAt; got != 5_000 {
+		t.Fatalf("DeletedAt = %d, want 5000", got)
+	}
+	s.sweep()
+	if len(s.Snapshot()) != 1 {
+		t.Fatal("fresh tombstone with filled DeletedAt was swept")
+	}
+	if s.Merge("k", Entry[string]{Value: "old", Version: ver(1, "a")}) {
+		t.Fatal("older version accepted over tombstone")
+	}
+}
+
+func TestConcurrentMergeConverges(t *testing.T) {
+	clk := clock.NewFakeClock(1_000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: time.Hour})
+	const workers, per = 8, 500
+	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		best version.Version
+	)
+	stop := make(chan struct{})
+	var bg sync.WaitGroup
+	bg.Add(1)
+	go func() {
+		defer bg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				s.Snapshot()
+				s.sweep()
+			}
+		}
+	}()
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			rng := rand.New(rand.NewSource(int64(w)))
+			node := fmt.Sprintf("n%d", w)
+			for i := 0; i < per; i++ {
+				v := ver(uint64(rng.Intn(10_000)+1), node)
+				switch rng.Intn(3) {
+				case 0:
+					s.Delete("k", v)
+				default:
+					s.Set("k", "v", 0, v)
+				}
+				mu.Lock()
+				if version.Compare(v, best) > 0 {
+					best = v
+				}
+				mu.Unlock()
+			}
+		}(w)
+	}
+	wg.Wait()
+	close(stop)
+	bg.Wait()
+	snap := s.Snapshot()
+	if len(snap) != 1 || snap[0].Entry.Version != best {
+		t.Fatalf("stored %+v, want version %v", snap, best)
+	}
+}
+
+func TestSnapshotShardUnion(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{NumShards: 8})
+	for i := 0; i < 100; i++ {
+		s.Set(fmt.Sprintf("k%d", i), "v", 0, ver(uint64(i+1), "a"))
+	}
+	s.Delete("gone", ver(500, "a"))
+	if s.NumShards() != 8 {
+		t.Fatalf("NumShards = %d", s.NumShards())
+	}
+	var union []KeyEntry[string, string]
+	for i := 0; i < s.NumShards(); i++ {
+		union = append(union, s.SnapshotShard(i)...)
+	}
+	all := s.Snapshot()
+	byKey := func(x []KeyEntry[string, string]) {
+		sort.Slice(x, func(i, j int) bool { return x[i].Key < x[j].Key })
+	}
+	byKey(union)
+	byKey(all)
+	if len(all) != 101 || !reflect.DeepEqual(union, all) {
+		t.Fatalf("union (%d) != snapshot (%d)", len(union), len(all))
+	}
+	if s.SnapshotShard(-1) != nil || s.SnapshotShard(8) != nil {
+		t.Fatal("out-of-range shard must return nil")
+	}
 }

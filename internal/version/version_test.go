@@ -53,8 +53,13 @@ func TestObserveMonotonicConcurrent(t *testing.T) {
 			defer wg.Done()
 			var last uint64
 			for i := 0; i < perWorker; i++ {
-				l.Observe(Version{Clock: uint64(i*workers + w)})
+				observed := uint64(i*workers + w)
+				l.Observe(Version{Clock: observed})
 				got := l.Next().Clock
+				if got <= observed {
+					t.Errorf("Next %d does not exceed observed %d", got, observed)
+					return
+				}
 				if got <= last {
 					t.Errorf("clock went backwards: %d after %d", got, last)
 					return
@@ -83,5 +88,30 @@ func TestRestartedNodeCatchesUp(t *testing.T) {
 	restarted.Observe(Version{Clock: 1000, NodeID: "n1"})
 	if got := restarted.Next().Clock; got != 1001 {
 		t.Fatalf("got %d, want 1001", got)
+	}
+}
+
+func TestObserveOnlyConcurrentExactMax(t *testing.T) {
+	l := NewLamport("n1")
+	const workers, perWorker = 8, 1000
+	var wg sync.WaitGroup
+	var maxObserved uint64
+	for w := 0; w < workers; w++ {
+		for i := 0; i < perWorker; i++ {
+			if c := uint64(1_000_000 + i*workers + w); c > maxObserved {
+				maxObserved = c
+			}
+		}
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := 0; i < perWorker; i++ {
+				l.Observe(Version{Clock: uint64(1_000_000 + i*workers + w)})
+			}
+		}(w)
+	}
+	wg.Wait()
+	if got := l.Next().Clock; got != maxObserved+1 {
+		t.Fatalf("Next = %d, want %d", got, maxObserved+1)
 	}
 }

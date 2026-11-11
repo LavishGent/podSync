@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -36,5 +37,32 @@ func TestNewIDFallback(t *testing.T) {
 		if !hex16.MatchString(a) || a == b {
 			t.Fatalf("%s: fallback IDs %q, %q", name, a, b)
 		}
+	}
+}
+
+func TestNewIDConcurrentUnique(t *testing.T) {
+	old := hostname
+	defer func() { hostname = old }()
+	hostname = func() (string, error) { return "pod", nil }
+	const n = 100
+	ids := make([]string, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			ids[i] = NewID()
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			t.Fatalf("duplicate ID %q", id)
+		}
+		seen[id] = true
 	}
 }
