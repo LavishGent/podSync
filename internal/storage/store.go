@@ -149,12 +149,11 @@ func (s *Store[K, V]) Delete(key K, v version.Version) bool {
 // reports whether it was applied. It is the single write path: Set, Delete,
 // replication, hydration, and repair all end here. e is stored unchanged, so
 // identical versions yield identical entries on every node.
+//
+// A tombstone must carry a non-zero DeletedAt from its origin (Delete sets it).
+// The T2 wire decoder rejects tombstones without one. A tombstone with a zero
+// DeletedAt is stored as given and is swept on the next tick.
 func (s *Store[K, V]) Merge(key K, e Entry[V]) bool {
-	// A tombstone with no DeletedAt would be swept on the next tick; stamp it
-	// with the local time so it keeps its version for the full window.
-	if e.Deleted && e.DeletedAt == 0 {
-		e.DeletedAt = s.clock.Now()
-	}
 	if s.shardFor(key).merge(key, e) {
 		return true
 	}

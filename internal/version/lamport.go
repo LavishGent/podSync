@@ -23,6 +23,11 @@ func (l *Lamport) Next() Version {
 
 // Observe raises the clock to at least v.Clock. Call it for every received
 // version before merging, so the next local write sorts after anything seen.
+//
+// Peers are trusted: replication connections are authenticated (Addendum A3),
+// so Observe applies no sanity bound. A remote clock near math.MaxUint64 would
+// make Next wrap to a small value, and this node's writes would then lose
+// every merge.
 func (l *Lamport) Observe(v Version) {
 	for {
 		cur := l.clock.Load()

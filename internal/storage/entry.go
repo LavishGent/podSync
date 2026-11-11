@@ -24,8 +24,8 @@ type Entry[V any] struct {
 	// been logically deleted.
 	Deleted bool
 	// DeletedAt is the originating node's clock in unix nanoseconds at the
-	// moment of deletion. Merge keeps it unchanged (filling it with the local
-	// time only when it is zero), so a tombstone that arrives late through
+	// moment of deletion. A tombstone must carry a non-zero DeletedAt. Merge
+	// keeps it unchanged, so a tombstone that arrives late through
 	// replication or repair has a shorter local retention window. Only the
 	// local tombstone sweeper reads it, so clock skew shifts GC timing and
 	// nothing else.

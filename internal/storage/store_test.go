@@ -419,21 +419,29 @@ func TestSweepHugeTombstoneTTLKeepsFreshTombstone(t *testing.T) {
 	}
 }
 
-func TestMergeFillsMissingDeletedAt(t *testing.T) {
-	clk := clock.NewFakeClock(5_000)
+func TestMergeSameTombstoneIdenticalAcrossStores(t *testing.T) {
+	in := Entry[string]{Deleted: true, DeletedAt: 4_242, Version: ver(2, "a")}
+	var snaps [2][]KeyEntry[string, string]
+	for i, now := range []int64{5_000, 9_000_000} {
+		s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clock.NewFakeClock(now)})
+		if !s.Merge("k", in) {
+			t.Fatal("merge should apply")
+		}
+		snaps[i] = s.Snapshot()
+	}
+	if !reflect.DeepEqual(snaps[0], snaps[1]) || snaps[0][0].Entry != in {
+		t.Fatalf("same version produced different entries: %+v vs %+v", snaps[0], snaps[1])
+	}
+}
+
+func TestSweepSkippedWhenCutoffUnderflows(t *testing.T) {
+	clk := clock.NewFakeClock(math.MinInt64 + 1)
 	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: 100})
-	if !s.Merge("k", Entry[string]{Deleted: true, Version: ver(2, "a")}) {
-		t.Fatal("merge should apply")
-	}
-	if got := s.Snapshot()[0].Entry.DeletedAt; got != 5_000 {
-		t.Fatalf("DeletedAt = %d, want 5000", got)
-	}
+	s.Merge("tomb", Entry[string]{Deleted: true, DeletedAt: math.MinInt64, Version: ver(1, "a")})
+	s.Merge("exp", Entry[string]{Value: "v", ExpiresAt: math.MinInt64, Version: ver(1, "a")})
 	s.sweep()
-	if len(s.Snapshot()) != 1 {
-		t.Fatal("fresh tombstone with filled DeletedAt was swept")
-	}
-	if s.Merge("k", Entry[string]{Value: "old", Version: ver(1, "a")}) {
-		t.Fatal("older version accepted over tombstone")
+	if got := len(s.Snapshot()); got != 2 {
+		t.Fatalf("sweep removed entries despite cutoff underflow, len=%d", got)
 	}
 }
 
