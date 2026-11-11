@@ -51,7 +51,7 @@ Needs `kind`, `kubectl`, Docker, `just`. Each step with the output to expect.
 
 2. **Hit it** (`just demo-hit`). A `kubectl port-forward` to a Service pins one pod, so requests come from a pod inside the cluster:
    ```sh
-   kubectl run hitter --rm -i --restart=Never --image=curlimages/curl -- \
+   kubectl run hitter --rm -i --restart=Never --image=curlimages/curl --command -- \
      sh -c 'for i in $(seq 12); do curl -si "http://podsync-app/hit?client=alice" | grep -iE "^(HTTP|x-pod)" | tr "\r\n" "  "; echo; sleep 0.2; done'
    ```
    Expect 12 lines like `HTTP/1.1 200 OK  X-Pod: podsync-app-6d9f...-abcde-<n>`: at least two distinct `X-Pod` values (the Service picks pods at random), about 5 lines with `200` then `429 Too Many Requests`. A little overshoot (6 or 7 allowed) is possible.

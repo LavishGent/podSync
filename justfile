@@ -35,7 +35,7 @@ demo-up:
 
 # Send 12 requests for one client from a pod inside the cluster, through the Service
 demo-hit:
-    kubectl run hitter --rm -i --restart=Never --image=curlimages/curl -- \
+    kubectl run hitter --rm -i --restart=Never --image=curlimages/curl --command -- \
       sh -c 'for i in $(seq 12); do curl -si "http://podsync-app/hit?client=alice" | grep -iE "^(HTTP|x-pod)" | tr "\r\n" "  "; echo; sleep 0.2; done'
 
 # Scale the Deployment to N replicas and follow hydration logs
