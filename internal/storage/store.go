@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/LavishGent/podsync/internal/clock"
+	"github.com/LavishGent/podsync/internal/version"
 )
 
 // StoreOptions are configurations for a Store.
@@ -16,8 +18,16 @@ type StoreOptions struct {
 	// NumShards is the total number of shard buckets to allocate.
 	// The default total is 64.
 	NumShards int
-	// SweepInterval is the interval at which to sweep expired Entries.
+	// SweepInterval is the interval at which to sweep entries that are past their TombstoneTTL window.
 	SweepInterval time.Duration
+	// TombstoneTTL is how long the sweeper keeps a deleted entry after
+	// DeletedAt, and an expired entry after ExpiresAt, before removing it. The
+	// default is 1h. Until then the entry's version still wins merges, so an
+	// older version cannot be repaired back in. A partition longer than
+	// TombstoneTTL can resurrect a deleted or expired key: a peer that missed
+	// the newer write still holds the older value, and once the local entry is
+	// swept, repair copies that value back.
+	TombstoneTTL time.Duration
 	// Clock is the time source for Store operations. By default, Clock is set to
 	// SystemClock.
 	Clock clock.Clock
@@ -33,6 +43,9 @@ type StoreStats struct {
 	Tombstones int
 	// TotalEntries are a total raw entry count across all shards.
 	TotalEntries int
+	// Conflicts counts merges rejected because the stored version was equal
+	// or newer.
+	Conflicts uint64
 }
 
 // Store is a generic sharded in-memory key-value store with TTL and soft-delete support.
@@ -42,10 +55,14 @@ type Store[K comparable, V any] struct {
 	clock     clock.Clock
 	opts      StoreOptions
 	startOnce sync.Once
+	conflicts atomic.Uint64
 }
 
 // NewStore creates a Store given StoreOptions.
 func NewStore[K comparable, V any](opts StoreOptions) *Store[K, V] {
+	if opts.TombstoneTTL <= 0 {
+		opts.TombstoneTTL = time.Hour
+	}
 	if opts.NumShards <= 0 {
 		opts.NumShards = 64
 	}
@@ -114,25 +131,71 @@ func (s *Store[K, V]) Get(key K) (V, bool) {
 	return e.Value, true
 }
 
-// Set stores value under key with the given expiration time (Unix nanoseconds; 0 = no expiry).
-func (s *Store[K, V]) Set(key K, value V, expiresAt int64) {
-	s.shardFor(key).set(key, Entry[V]{
-		Value:     value,
-		ExpiresAt: expiresAt,
-	})
+// Set stores value under key with the given expiration time (Unix nanoseconds;
+// 0 = no expiry) at version v. It reports whether the write was applied; a
+// write whose version is not newer than the stored one is rejected.
+func (s *Store[K, V]) Set(key K, value V, expiresAt int64, v version.Version) bool {
+	return s.Merge(key, Entry[V]{Value: value, ExpiresAt: expiresAt, Version: v})
 }
 
-// Delete soft-deletes key by marking it as a tombstone. It does not physically
-// remove the entry.
-func (s *Store[K, V]) Delete(key K) {
+// Delete soft-deletes key by writing a tombstone at version v, even if the key
+// is absent, since a peer may hold a live value. It reports whether the
+// tombstone was applied.
+func (s *Store[K, V]) Delete(key K, v version.Version) bool {
+	return s.Merge(key, Entry[V]{Deleted: true, DeletedAt: s.clock.Now(), Version: v})
+}
+
+// Merge applies e to key if its version is newer than the stored entry, and
+// reports whether it was applied. It is the single write path: Set, Delete,
+// replication, hydration, and repair all end here. e is stored unchanged, so
+// identical versions yield identical entries on every node.
+//
+// A tombstone must carry a non-zero DeletedAt from its origin (Delete sets it).
+// The T2 wire decoder rejects tombstones without one. A tombstone with a zero
+// DeletedAt is stored as given and is swept on the next tick.
+func (s *Store[K, V]) Merge(key K, e Entry[V]) bool {
+	if s.shardFor(key).merge(key, e) {
+		return true
+	}
+	s.conflicts.Add(1)
+	return false
+}
+
+// Snapshot returns every entry, tombstones and expired entries included, in
+// no particular order.
+func (s *Store[K, V]) Snapshot() []KeyEntry[K, V] {
+	var out []KeyEntry[K, V]
+	for i := range s.shards {
+		out = s.shards[i].snapshot(out)
+	}
+	return out
+}
+
+// NumShards returns the number of shard buckets, for paged state transfer.
+func (s *Store[K, V]) NumShards() int { return s.numShards }
+
+// SnapshotShard returns every entry in shard i, tombstones and expired entries
+// included, in no particular order. An out-of-range i returns nil.
+func (s *Store[K, V]) SnapshotShard(i int) []KeyEntry[K, V] {
+	if i < 0 || i >= len(s.shards) {
+		return nil
+	}
+	return s.shards[i].snapshot(nil)
+}
+
+// sweep removes expired entries and tombstones past TombstoneTTL.
+func (s *Store[K, V]) sweep() {
 	now := s.clock.Now()
-	s.shardFor(key).delete(key, now)
+	ttl := int64(s.opts.TombstoneTTL)
+	for i := range s.shards {
+		s.shards[i].sweep(now, ttl)
+	}
 }
 
 // Stats returns a point-in-time snapshot of the store's entry counts.
 func (s *Store[K, V]) Stats() StoreStats {
 	now := s.clock.Now()
-	var stats StoreStats
+	stats := StoreStats{Conflicts: s.conflicts.Load()}
 	for i := range s.shards {
 		sh := &s.shards[i]
 		sh.mu.RLock()
@@ -167,10 +230,7 @@ func (s *Store[K, V]) Start(ctx context.Context) {
 			for {
 				select {
 				case <-ticker.C:
-					now := s.clock.Now()
-					for i := range s.shards {
-						s.shards[i].sweep(now)
-					}
+					s.sweep()
 				case <-ctx.Done():
 					return
 				}

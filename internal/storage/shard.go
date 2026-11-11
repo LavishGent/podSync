@@ -1,6 +1,11 @@
 package storage
 
-import "sync"
+import (
+	"math"
+	"sync"
+
+	"github.com/LavishGent/podsync/internal/version"
+)
 
 // shard is a sharded bucket. All exported logic lives in Store.
 type shard[K comparable, V any] struct {
@@ -20,32 +25,47 @@ func (s *shard[K, V]) get(key K, now int64) (Entry[V], bool) {
 	return e, ok
 }
 
-// set unconditionally associates an entry to a key.
-func (s *shard[K, V]) set(key K, entry Entry[V]) {
+// merge applies incoming if key is absent or incoming has a strictly newer
+// version than the stored entry, and reports whether it was applied. Every
+// write to a shard, including tombstones, goes through here.
+func (s *shard[K, V]) merge(key K, incoming Entry[V]) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data[key] = entry
-}
-
-// delete marks a key with a tombstone. It is a no-op if key does not exist.
-func (s *shard[K, V]) delete(key K, now int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if e, ok := s.data[key]; ok {
-		e.Deleted = true
-		s.data[key] = e
+	if existing, ok := s.data[key]; ok && version.Compare(incoming.Version, existing.Version) <= 0 {
+		return false
 	}
+	s.data[key] = incoming
+	return true
 }
 
-// sweep removes entries that are expired AND not tombstones.
-// Tombstone entries (Deleted=true) are never removed in MS1-A.
-// Returns the number of entries removed.
-func (s *shard[K, V]) sweep(now int64) int {
+// snapshot appends every raw entry, tombstones included, to dst.
+func (s *shard[K, V]) snapshot(dst []KeyEntry[K, V]) []KeyEntry[K, V] {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for k, e := range s.data {
+		dst = append(dst, KeyEntry[K, V]{Key: k, Entry: e})
+	}
+	return dst
+}
+
+// sweep removes tombstones whose DeletedAt+tombstoneTTL has passed and expired
+// entries whose ExpiresAt+tombstoneTTL has passed. Expired entries keep their
+// version for the same window as tombstones so an older version cannot be
+// merged back in. Returns the number of entries removed.
+func (s *shard[K, V]) sweep(now, tombstoneTTL int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// x+tombstoneTTL <= now is x <= now-tombstoneTTL. If now-tombstoneTTL would
+	// underflow, no entry can be past its window, so sweep nothing; clamping to
+	// MinInt64 would wrongly remove entries stamped MinInt64.
+	if now < math.MinInt64+tombstoneTTL {
+		return 0
+	}
+	cutoff := now - tombstoneTTL
 	swept := 0
 	for k, e := range s.data {
-		if !e.Deleted && e.IsExpired(now) {
+		if (e.Deleted && e.DeletedAt <= cutoff) ||
+			(!e.Deleted && e.ExpiresAt != 0 && e.ExpiresAt <= cutoff) {
 			delete(s.data, k)
 			swept++
 		}
