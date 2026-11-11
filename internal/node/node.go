@@ -235,6 +235,9 @@ func New[K comparable, V any](cfg Config[K, V]) (*Node[K, V], error) {
 	return n, nil
 }
 
+// ID returns the node's ID.
+func (n *Node[K, V]) ID() string { return n.id }
+
 // Ready reports whether the node has finished hydrating and is not closing.
 func (n *Node[K, V]) Ready() bool {
 	return State(n.state.Load()) == StateReady && !n.isClosing()
@@ -425,6 +428,7 @@ func (n *Node[K, V]) onPeersChanged(added, removed []string) {
 	if n.closing {
 		return
 	}
+	n.log.Info("peers changed", "added", added, "removed", removed)
 	for _, a := range added {
 		if _, ok := n.queues[a]; !ok {
 			q := n.newPeerQueue(a)
