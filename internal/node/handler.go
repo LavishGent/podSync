@@ -70,6 +70,8 @@ func (n *Node[K, V]) applyEntry(w wire.Entry) (bool, error) {
 func (n *Node[K, V]) hydrate(ctx context.Context) error {
 	hctx, cancel := context.WithTimeout(ctx, n.cfg.HydrationTimeout)
 	defer cancel()
+	stop := context.AfterFunc(n.rootCtx, cancel) // Close cancels hydration
+	defer stop()
 	prog := &hydrationProgress{}
 	for {
 		addrs := n.peers.Peers()
@@ -92,6 +94,9 @@ func (n *Node[K, V]) hydrate(ctx context.Context) error {
 		case <-hctx.Done():
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+			if n.rootCtx.Err() != nil {
+				return ErrClosed
 			}
 			n.log.Error("hydration timed out; going Ready with partial state",
 				"timeout", n.cfg.HydrationTimeout, "merged_through_shard", prog.next)
