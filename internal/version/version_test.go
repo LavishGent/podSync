@@ -115,3 +115,15 @@ func TestObserveOnlyConcurrentExactMax(t *testing.T) {
 		t.Fatalf("Next = %d, want %d", got, maxObserved+1)
 	}
 }
+
+func TestLamportCurrentDoesNotAdvance(t *testing.T) {
+	l := NewLamport("n")
+	if l.Current() != 0 {
+		t.Fatal("start at 0")
+	}
+	l.Next()
+	l.Observe(Version{Clock: 10})
+	if l.Current() != 10 || l.Current() != 10 {
+		t.Fatalf("Current = %d", l.Current())
+	}
+}
