@@ -7,20 +7,23 @@ import (
 	"time"
 
 	"github.com/LavishGent/podsync/internal/clock"
+	"github.com/LavishGent/podsync/internal/version"
 )
 
 func BenchmarkSet(b *testing.B) {
+	lam := version.NewLamport("bench")
 	s := NewStore[string, string](StoreOptions{NumShards: 64})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		s.Set(fmt.Sprintf("key-%d", i%1000), "value", 0)
+		s.Set(fmt.Sprintf("key-%d", i%1000), "value", 0, lam.Next())
 	}
 }
 
 func BenchmarkGet(b *testing.B) {
+	lam := version.NewLamport("bench")
 	s := NewStore[string, string](StoreOptions{NumShards: 64})
 	for i := 0; i < 1000; i++ {
-		s.Set(fmt.Sprintf("key-%d", i), "value", 0)
+		s.Set(fmt.Sprintf("key-%d", i), "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -29,9 +32,10 @@ func BenchmarkGet(b *testing.B) {
 }
 
 func BenchmarkConcurrentGet(b *testing.B) {
+	lam := version.NewLamport("bench")
 	s := NewStore[string, string](StoreOptions{NumShards: 64})
 	for i := 0; i < 1000; i++ {
-		s.Set(fmt.Sprintf("key-%d", i), "value", 0)
+		s.Set(fmt.Sprintf("key-%d", i), "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -44,16 +48,17 @@ func BenchmarkConcurrentGet(b *testing.B) {
 }
 
 func BenchmarkConcurrentMixed(b *testing.B) {
+	lam := version.NewLamport("bench")
 	s := NewStore[string, string](StoreOptions{NumShards: 64})
 	for i := 0; i < 1000; i++ {
-		s.Set(fmt.Sprintf("key-%d", i), "value", 0)
+		s.Set(fmt.Sprintf("key-%d", i), "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
 			if i%10 == 0 {
-				s.Set(fmt.Sprintf("key-%d", i%1000), "new-value", time.Now().Add(time.Minute).UnixNano())
+				s.Set(fmt.Sprintf("key-%d", i%1000), "new-value", time.Now().Add(time.Minute).UnixNano(), lam.Next())
 			} else {
 				s.Get(fmt.Sprintf("key-%d", i%1000))
 			}
@@ -70,6 +75,7 @@ func BenchmarkConcurrentMixed(b *testing.B) {
 // ---------------------------------------------------------------------------
 
 func BenchmarkGetWithSystemClock(b *testing.B) {
+	lam := version.NewLamport("bench")
 	s := NewStore[string, string](StoreOptions{
 		NumShards: 64,
 		Clock:     clock.SystemClock{},
@@ -77,7 +83,7 @@ func BenchmarkGetWithSystemClock(b *testing.B) {
 	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
 		keys[i] = fmt.Sprintf("key-%d", i)
-		s.Set(keys[i], "value", 0)
+		s.Set(keys[i], "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -86,6 +92,7 @@ func BenchmarkGetWithSystemClock(b *testing.B) {
 }
 
 func BenchmarkGetWithCoarseClock(b *testing.B) {
+	lam := version.NewLamport("bench")
 	clk := clock.NewCoarseClock(time.Millisecond)
 	clk.Start(context.Background())
 	defer clk.Close()
@@ -97,7 +104,7 @@ func BenchmarkGetWithCoarseClock(b *testing.B) {
 	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
 		keys[i] = fmt.Sprintf("key-%d", i)
-		s.Set(keys[i], "value", 0)
+		s.Set(keys[i], "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -106,6 +113,7 @@ func BenchmarkGetWithCoarseClock(b *testing.B) {
 }
 
 func BenchmarkConcurrentGetWithSystemClock(b *testing.B) {
+	lam := version.NewLamport("bench")
 	s := NewStore[string, string](StoreOptions{
 		NumShards: 64,
 		Clock:     clock.SystemClock{},
@@ -113,7 +121,7 @@ func BenchmarkConcurrentGetWithSystemClock(b *testing.B) {
 	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
 		keys[i] = fmt.Sprintf("key-%d", i)
-		s.Set(keys[i], "value", 0)
+		s.Set(keys[i], "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -126,6 +134,7 @@ func BenchmarkConcurrentGetWithSystemClock(b *testing.B) {
 }
 
 func BenchmarkConcurrentGetWithCoarseClock(b *testing.B) {
+	lam := version.NewLamport("bench")
 	clk := clock.NewCoarseClock(time.Millisecond)
 	clk.Start(context.Background())
 	defer clk.Close()
@@ -137,7 +146,7 @@ func BenchmarkConcurrentGetWithCoarseClock(b *testing.B) {
 	keys := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
 		keys[i] = fmt.Sprintf("key-%d", i)
-		s.Set(keys[i], "value", 0)
+		s.Set(keys[i], "value", 0, lam.Next())
 	}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

@@ -2,15 +2,34 @@ package storage
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
+	"reflect"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/LavishGent/podsync/internal/clock"
+	"github.com/LavishGent/podsync/internal/version"
 )
+
+func ver(c uint64, n string) version.Version { return version.Version{Clock: c, NodeID: n} }
+
+// waitFor polls cond until it holds or a deadline passes.
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
 
 func TestSetGet(t *testing.T) {
 	s := NewStore[string, string](StoreOptions{NumShards: 4})
-	s.Set("hello", "world", 0)
+	s.Set("hello", "world", 0, ver(1, "a"))
 	v, ok := s.Get("hello")
 	if !ok {
 		t.Fatal("expected key to exist")
@@ -26,7 +45,7 @@ func TestExpiredKey(t *testing.T) {
 	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
 
 	// Key expires at t=500, which is already in the past relative to clk.Now()=1000.
-	s.Set("expiring", "value", 500)
+	s.Set("expiring", "value", 500, ver(1, "a"))
 	_, ok := s.Get("expiring")
 	if ok {
 		t.Fatal("expected expired key to be missing")
@@ -38,7 +57,7 @@ func TestExpiredKeyBecomesExpired(t *testing.T) {
 	clk := clock.NewFakeClock(100)
 	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
 
-	s.Set("k", "v", 500) // expires at t=500
+	s.Set("k", "v", 500, ver(1, "a")) // expires at t=500
 
 	// At t=100, the key should be alive.
 	v, ok := s.Get("k")
@@ -58,24 +77,177 @@ func TestExpiredKeyBecomesExpired(t *testing.T) {
 }
 
 func TestResurrectionStaleWrite(t *testing.T) {
-	// Version conflict resolution is deferred to MS1-B.
-	// For now the second Set unconditionally overwrites the first.
 	s := NewStore[string, string](StoreOptions{NumShards: 4})
-	s.Set("key", "first", 0)
-	s.Set("key", "second", 0)
-	v, ok := s.Get("key")
-	if !ok {
-		t.Fatal("expected key to exist after second Set")
+	s.Set("key", "first", 0, ver(1, "a"))
+	if !s.Delete("key", ver(5, "a")) {
+		t.Fatal("delete with newer version should apply")
 	}
-	if v != "second" {
-		t.Fatalf("got %q, want %q", v, "second")
+	if s.Set("key", "stale", 0, ver(3, "b")) {
+		t.Fatal("stale Set must be rejected by the tombstone")
+	}
+	if _, ok := s.Get("key"); ok {
+		t.Fatal("stale write resurrected a deleted key")
+	}
+}
+
+func TestNewerSetReplacesTombstone(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{NumShards: 4})
+	s.Delete("key", ver(5, "a"))
+	if !s.Set("key", "fresh", 0, ver(6, "b")) {
+		t.Fatal("newer Set should replace tombstone")
+	}
+	if v, ok := s.Get("key"); !ok || v != "fresh" {
+		t.Fatalf("got %q, %v", v, ok)
+	}
+}
+
+func TestDeleteAbsentKeyWritesTombstone(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{NumShards: 4})
+	if !s.Delete("ghost", ver(2, "a")) {
+		t.Fatal("delete of absent key should apply")
+	}
+	if got := s.Stats().Tombstones; got != 1 {
+		t.Fatalf("Tombstones = %d, want 1", got)
+	}
+	if s.Set("ghost", "v", 0, ver(1, "b")) {
+		t.Fatal("older Set must lose to the tombstone")
+	}
+}
+
+func TestIdenticalVersionIsNoop(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{NumShards: 4})
+	s.Set("k", "first", 0, ver(1, "a"))
+	if s.Set("k", "second", 0, ver(1, "a")) {
+		t.Fatal("identical version must be a no-op")
+	}
+	if v, _ := s.Get("k"); v != "first" {
+		t.Fatalf("got %q, want first", v)
+	}
+}
+
+func TestMergeKeepsIncomingTimestamps(t *testing.T) {
+	clk := clock.NewFakeClock(9_000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
+	in := Entry[string]{Value: "v", ExpiresAt: 50_000, Version: ver(3, "x"), Deleted: true, DeletedAt: 1234}
+	if !s.Merge("k", in) {
+		t.Fatal("merge should apply")
+	}
+	snap := s.Snapshot()
+	if len(snap) != 1 || snap[0].Entry != in {
+		t.Fatalf("snapshot %+v, want entry %+v unchanged", snap, in)
+	}
+}
+
+func TestDeleteSetsDeletedAtFromClock(t *testing.T) {
+	clk := clock.NewFakeClock(777)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
+	s.Delete("k", ver(1, "a"))
+	if got := s.Snapshot()[0].Entry.DeletedAt; got != 777 {
+		t.Fatalf("DeletedAt = %d, want 777", got)
+	}
+}
+
+func TestConflictsCounted(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{NumShards: 4})
+	s.Set("k", "v", 0, ver(5, "a"))
+	s.Set("k", "old", 0, ver(4, "a"))
+	s.Set("k", "same", 0, ver(5, "a"))
+	s.Delete("k", ver(1, "a"))
+	if got := s.Stats().Conflicts; got != 3 {
+		t.Fatalf("Conflicts = %d, want 3", got)
+	}
+}
+
+func TestSnapshotIncludesTombstones(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{NumShards: 4})
+	s.Set("a", "1", 0, ver(1, "n"))
+	s.Delete("b", ver(2, "n"))
+	if got := len(s.Snapshot()); got != 2 {
+		t.Fatalf("Snapshot len = %d, want 2", got)
+	}
+}
+
+type mutation struct {
+	key   string
+	entry Entry[string]
+}
+
+func TestConvergence(t *testing.T) {
+	nodes := []string{"n1", "n2", "n3"}
+	rng := rand.New(rand.NewSource(42))
+	muts := make([]mutation, 200)
+	for i := range muts {
+		e := Entry[string]{
+			Value:   fmt.Sprintf("v%d", i),
+			Version: ver(uint64(rng.Intn(40)+1), nodes[rng.Intn(len(nodes))]),
+		}
+		if rng.Intn(4) == 0 {
+			e.Deleted, e.DeletedAt = true, int64(e.Version.Clock)
+			e.Value = ""
+		}
+		muts[i] = mutation{key: fmt.Sprintf("k%d", rng.Intn(15)), entry: e}
+	}
+	// Distinct mutations must not share a version for the same key, or the
+	// "same version, same entry" precondition of convergence is violated.
+	seen := map[string]bool{}
+	uniq := muts[:0]
+	for _, m := range muts {
+		id := fmt.Sprintf("%s/%v", m.key, m.entry.Version)
+		if !seen[id] {
+			seen[id] = true
+			uniq = append(uniq, m)
+		}
+	}
+
+	apply := func(seed int64) []KeyEntry[string, string] {
+		order := append([]mutation(nil), uniq...)
+		rand.New(rand.NewSource(seed)).Shuffle(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
+		s := NewStore[string, string](StoreOptions{NumShards: 4})
+		for _, m := range order {
+			s.Merge(m.key, m.entry)
+		}
+		snap := s.Snapshot()
+		sort.Slice(snap, func(i, j int) bool { return snap[i].Key < snap[j].Key })
+		return snap
+	}
+	a, b := apply(1), apply(2)
+	if len(a) == 0 || !reflect.DeepEqual(a, b) {
+		t.Fatalf("stores diverged:\n%+v\n%+v", a, b)
+	}
+}
+
+func TestTombstoneSweep(t *testing.T) {
+	clk := clock.NewFakeClock(1_000)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: time.Hour})
+	ttl := int64(time.Hour)
+	s.Delete("old", ver(1, "a"))
+	clk.Set(1_000 + ttl/2)
+	s.Delete("young", ver(2, "a"))
+	s.Set("live", "v", 0, ver(3, "a"))
+
+	clk.Set(1_000 + ttl) // "old" is exactly at its deadline, "young" is not
+	s.sweep()
+	snap := s.Snapshot()
+	got := map[string]bool{}
+	for _, ke := range snap {
+		got[ke.Key] = true
+	}
+	if got["old"] || !got["young"] || !got["live"] {
+		t.Fatalf("after sweep have %v", got)
+	}
+}
+
+func TestTombstoneTTLDefault(t *testing.T) {
+	s := NewStore[string, string](StoreOptions{})
+	if s.opts.TombstoneTTL != time.Hour {
+		t.Fatalf("default TombstoneTTL = %v", s.opts.TombstoneTTL)
 	}
 }
 
 func TestDeleteGet(t *testing.T) {
 	s := NewStore[string, string](StoreOptions{NumShards: 4})
-	s.Set("key", "value", 0)
-	s.Delete("key")
+	s.Set("key", "value", 0, ver(1, "a"))
+	s.Delete("key", ver(2, "a"))
 	_, ok := s.Get("key")
 	if ok {
 		t.Fatal("expected deleted key to be missing")
@@ -110,10 +282,10 @@ func TestStats(t *testing.T) {
 	clk := clock.NewFakeClock(1000)
 	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk})
 
-	s.Set("live", "v", 0)      // no expiry → live
-	s.Set("expired", "v", 500) // expires at t=500, now=1000 → expired
-	s.Set("tombstone", "v", 0)
-	s.Delete("tombstone")
+	s.Set("live", "v", 0, ver(1, "a"))      // no expiry → live
+	s.Set("expired", "v", 500, ver(1, "a")) // expires at t=500, now=1000 → expired
+	s.Set("tombstone", "v", 0, ver(1, "a"))
+	s.Delete("tombstone", ver(2, "a"))
 
 	stats := s.Stats()
 	if stats.LiveKeys != 1 {
@@ -143,11 +315,10 @@ func TestSweeper(t *testing.T) {
 	s.Start(ctx)
 
 	// "expiring" expires at t=500 which is already past (clk=1000).
-	s.Set("expiring", "v", 500)
-	s.Set("live", "v", 0)
+	s.Set("expiring", "v", 500, ver(1, "a"))
+	s.Set("live", "v", 0, ver(1, "a"))
 
-	// Wait for at least one sweep tick to fire.
-	time.Sleep(50 * time.Millisecond)
+	waitFor(t, "expired key to be swept", func() bool { return s.Stats().ExpiredKeys == 0 })
 
 	stats := s.Stats()
 	if stats.ExpiredKeys != 0 {
@@ -170,9 +341,10 @@ func TestSweeperDoesNotSweepBeforeExpiry(t *testing.T) {
 	defer cancel()
 	s.Start(ctx)
 
-	s.Set("future", "v", 500) // not expired yet at clk=100
+	s.Set("future", "v", 500, ver(1, "a")) // not expired yet at clk=100
 
-	time.Sleep(50 * time.Millisecond) // let sweeper run
+	// Absence of a sweep cannot be polled for; give several ticks to misbehave.
+	time.Sleep(50 * time.Millisecond)
 
 	stats := s.Stats()
 	if stats.LiveKeys != 1 {
@@ -181,10 +353,5 @@ func TestSweeperDoesNotSweepBeforeExpiry(t *testing.T) {
 
 	// Now advance past expiry and let sweeper run again.
 	clk.Set(501)
-	time.Sleep(50 * time.Millisecond)
-
-	stats = s.Stats()
-	if stats.ExpiredKeys != 0 {
-		t.Errorf("expected key to be swept after clock advance, ExpiredKeys=%d", stats.ExpiredKeys)
-	}
+	waitFor(t, "key to be swept after clock advance", func() bool { return s.Stats().TotalEntries == 0 })
 }
