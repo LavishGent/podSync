@@ -26,8 +26,8 @@ The v0.1 work is a stack of draft PRs. Each PR targets its parent branch. Nothin
 | T2 wire encoding | [#9](https://github.com/LavishGent/podSync/pull/9) | `feat/T1-versioning-merge` | Draft, reviewed (3 rounds) |
 | T3 transport and peers | [#10](https://github.com/LavishGent/podSync/pull/10) | `feat/T2-wire-encoding` | Draft, reviewed (1 round, 2 blockers fixed) |
 | T4 replication and hydration | not opened | `feat/T3-transport-peers` | In review (branch `feat/T4-replication-hydration`) |
-| T5 repair | not started | T4 branch | |
-| T6 public API, Kind demo, docs | not started | T5 branch | |
+| T5 repair | not opened | T4 branch | In review (branch `feat/T5-repair`) |
+| T6 public API, demo, docs | not opened | T5 branch | In review (branch `feat/T6-public-api-demo`). Kind demo untested; local demo tested |
 
 [[../rescope_v0.1|PR #6]] (the rescope docs) is a separate, older PR. The stack above is based on `docs/v0.1-addendum`, which contains that content.
 
@@ -51,7 +51,7 @@ The v0.1 work is a stack of draft PRs. Each PR targets its parent branch. Nothin
 - **T2 follow-up:** a max-count frame of tiny entries transiently allocates about 1 GB. A 50k-entry page is about 465 MB. Revisit if memory use matters.
 - **T2 follow-up:** `FromEntry` should reject `Clock == 0`, as `ToEntry` does. `minEntryWire` could be 143.
 - **Repo hygiene:** `docs/go_1.27_upgrade.md` is untracked and stale. Rewrite or delete it. It is not committed.
-- **T6:** the rate-limiter demo needs a Kind run, or a documented manual script if Kind is unavailable.
+- **T6:** the Kind demo still needs a real run. `docs/demo_manual.md` and `scripts/demo-local.sh` cover the no-Kind case.
 
 ## Workflow
 
