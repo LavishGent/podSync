@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 )
 
 // MaxFrameSize is the largest payload a frame may carry.
@@ -83,9 +84,20 @@ func ReadFrame(r io.Reader) (MsgType, []byte, error) {
 	return MsgType(hdr[4]), buf.Bytes(), nil
 }
 
-// Decode gob-decodes payload into the value pointed to by into. Bytes after
-// the encoded value return ErrTrailingBytes.
+// Decode gob-decodes payload into the value pointed to by into, which must
+// be a pointer to one of this package's message types or Entry. The
+// payload's gob type definitions must match what this package encodes for
+// that type, or Decode returns ErrUnexpectedTypeDef before decoding any
+// value. Bytes after the gob stream return ErrTrailingBytes; bytes inside a
+// gob record after its value are not detected.
 func Decode(payload []byte, into any) error {
+	rt := reflect.TypeOf(into)
+	if rt == nil || rt.Kind() != reflect.Pointer {
+		return fmt.Errorf("wire: decode target %T is not a pointer", into)
+	}
+	if err := checkTypeDefs(payload, rt.Elem()); err != nil {
+		return err
+	}
 	r := bytes.NewReader(payload)
 	if err := gob.NewDecoder(r).Decode(into); err != nil {
 		return err
@@ -135,4 +147,12 @@ func decodeValidated[M validator](payload []byte) (any, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func gobEncode(v any) []byte {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(v); err != nil {
+		panic(fmt.Sprintf("wire: gob encode %T: %v", v, err))
+	}
+	return b.Bytes()
 }

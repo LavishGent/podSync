@@ -147,7 +147,7 @@ func TestConvertCodecErrors(t *testing.T) {
 	if _, err := FromEntry("k", storage.Entry[string]{Value: "v"}, kc, failCodec{}); err == nil {
 		t.Fatal("marshal error must surface")
 	}
-	if _, _, err := ToEntry(Entry{Key: []byte("k"), Value: []byte("v")}, kc, failCodec{}); err == nil {
+	if _, _, err := ToEntry(Entry{Key: []byte("k"), Value: []byte("v"), Version: version.Version{Clock: 1, NodeID: "n"}}, kc, failCodec{}); err == nil {
 		t.Fatal("unmarshal error must surface")
 	}
 }
@@ -155,6 +155,13 @@ func TestConvertCodecErrors(t *testing.T) {
 func TestToEntryRejectsZeroVersion(t *testing.T) {
 	_, _, err := ToEntry[string, string](Entry{Key: []byte("k"), Value: []byte("v")}, mustKC(t), strCodec{})
 	if !errors.Is(err, ErrZeroVersion) {
+		t.Fatalf("err = %v, want ErrZeroVersion", err)
+	}
+}
+
+func TestToEntryRejectsZeroClock(t *testing.T) {
+	in := Entry{Key: []byte("k"), Value: []byte("v"), Version: version.Version{Clock: 0, NodeID: "z"}}
+	if _, _, err := ToEntry[string, string](in, mustKC(t), strCodec{}); !errors.Is(err, ErrZeroVersion) {
 		t.Fatalf("err = %v, want ErrZeroVersion", err)
 	}
 }

@@ -19,8 +19,8 @@ type ValueCodec[V any] interface {
 // storage.Store.Merge requires every tombstone to carry a DeletedAt.
 var ErrTombstoneNoDeletedAt = errors.New("wire: tombstone has zero DeletedAt")
 
-// ErrZeroVersion reports a wire entry with a zero Version, which no node
-// can produce.
+// ErrZeroVersion reports a wire entry whose Version has Clock 0, which no
+// node can produce (Lamport clocks start at 1).
 var ErrZeroVersion = errors.New("wire: entry has zero Version")
 
 // FromEntry converts a storage entry to its wire form. A tombstone carries no
@@ -46,11 +46,11 @@ func FromEntry[K comparable, V any](key K, e storage.Entry[V], keyEnc KeyCodec[K
 }
 
 // ToEntry converts a wire entry back to a key and storage entry. It rejects a
-// zero Version with ErrZeroVersion and a tombstone whose DeletedAt is zero
+// Version with Clock 0 with ErrZeroVersion and a tombstone whose DeletedAt is zero
 // with ErrTombstoneNoDeletedAt.
 func ToEntry[K comparable, V any](w Entry, keyDec KeyCodec[K], valDec ValueCodec[V]) (K, storage.Entry[V], error) {
 	var zeroK K
-	if w.Version.IsZero() {
+	if w.Version.Clock == 0 {
 		return zeroK, storage.Entry[V]{}, ErrZeroVersion
 	}
 	if w.Deleted && w.DeletedAt == 0 {

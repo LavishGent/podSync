@@ -1,5 +1,3 @@
-// Package wire defines the messages peers exchange and the framing that
-// carries them.
 package wire
 
 import (
@@ -68,7 +66,9 @@ type MutationAck struct {
 	Applied bool
 }
 
-// StateRequest asks for one shard of the responder's state. EntryBlob carries
+// StateRequest asks for one shard of the responder's state. NumShards is the
+// sender's own shard count and Shard may exceed it (the requester walks up
+// to the larger of both counts). EntryBlob carries
 // the requester's own entries for that shard (the repair push side) and is
 // empty for hydration. Entries are packed as length-prefixed, individually
 // encoded entries (see EncodeEntries) so the count is bounded before any are
