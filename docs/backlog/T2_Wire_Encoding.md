@@ -48,7 +48,7 @@ Define the messages peers exchange and the framing that carries them. `encoding/
    - `WriteFrame(w io.Writer, t MsgType, msg any) error`: gob-encode into a buffer, then write header + payload in one `Write` call.
    - `ReadFrame(r io.Reader) (MsgType, []byte, error)`: read 5 header bytes with `io.ReadFull`; reject length `> MaxFrameSize` (16 MiB) **before** allocating; `io.ReadFull` the payload.
    - `Decode(payload []byte, into any) error` wrapping `gob.NewDecoder`.
-   - Note on gob: a fresh encoder per frame re-sends type info each time. That is acceptable at v0.1 message sizes; if it shows in profiles, switch to one encoder/decoder pair per connection in T3.
+   - Note on gob: a fresh encoder per frame re-sends type info each time. That is acceptable at v0.1 message sizes; do not share one encoder/decoder pair per connection, because type-definition pinning needs a fresh encoder per frame.
 
 ### Value codec
 3. Create `pkg/podsync/codec.go` (public, since users implement it):
@@ -83,7 +83,7 @@ Define the messages peers exchange and the framing that carries them. `encoding/
 | `BenchmarkEncodeMutation` (`WriteFrame`) | 1721 | 3232 | 27 |
 | `BenchmarkDecodeMutation` (`Decode`) | 7772 | 10648 | 246 |
 
-Before the check, decode was 6568 ns/op, 9648 B/op, 220 allocs/op. Decode dominates because each frame re-sends gob type info. Fine at v0.1 volumes; revisit with one encoder/decoder pair per connection in T3 if profiles show it.
+Before the check, decode was 6568 ns/op, 9648 B/op, 220 allocs/op. Decode dominates because each frame re-sends gob type info. Fine at v0.1 volumes; a shared per-connection encoder is not compatible with type-definition pinning, so this cost is deferred past v0.1.
 
 ## Review fixes
 Round 1:
