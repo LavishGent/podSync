@@ -32,7 +32,9 @@ type TCP struct {
 	// Logf receives handshake diagnostics. Default log.Printf.
 	Logf func(format string, args ...any)
 
-	onAccept func() // test hook
+	onAccept    func() // test hook
+	beforeTrack func() // test hook: between Accept and tracking the conn
+	afterSlot   func() // test hook: between slotFor and taking the slot
 
 	mu     sync.Mutex
 	slots  map[string]*slot
@@ -121,7 +123,17 @@ func (t *TCP) Listen(ctx context.Context, addr string, h Handler) error {
 			}
 			return err
 		}
+		if t.beforeTrack != nil {
+			t.beforeTrack()
+		}
+		// Under t.mu, either ctx is already cancelled (close the conn here) or
+		// the cancel goroutine has not walked t.conns yet (it will close it).
 		t.mu.Lock()
+		if ctx.Err() != nil {
+			t.mu.Unlock()
+			c.Close()
+			continue
+		}
 		t.conns[c] = struct{}{}
 		t.mu.Unlock()
 		if t.onAccept != nil {
@@ -196,12 +208,24 @@ func (t *TCP) Send(ctx context.Context, addr string, mt wire.MsgType, msg any) (
 	if err != nil {
 		return 0, nil, err
 	}
+	if t.afterSlot != nil {
+		t.afterSlot()
+	}
 	select {
 	case s.sem <- struct{}{}:
 	case <-ctx.Done():
 		return 0, nil, ctx.Err()
 	}
 	defer func() { <-s.sem }()
+
+	// slotFor checked closed before we waited for the slot. Re-check so a Send
+	// admitted before Close cannot dial and cache a conn Close will never see.
+	t.mu.Lock()
+	closed := t.closed
+	t.mu.Unlock()
+	if closed {
+		return 0, nil, errors.New("transport: closed")
+	}
 
 	if s.conn == nil {
 		c, err := t.dial(ctx, addr)

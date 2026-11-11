@@ -230,3 +230,67 @@ func TestTCPSecretTooShortRejected(t *testing.T) {
 		t.Fatalf("Send err = %v", err)
 	}
 }
+
+// A conn accepted just before ctx is cancelled must not keep Listen alive.
+func TestTCPListenReturnsWhenCancelledBetweenAcceptAndTrack(t *testing.T) {
+	srv := newTCP(nil)
+	srv.DialTimeout = time.Minute // keep a silent conn from ending via handshake timeout
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	srv.beforeTrack = func() {
+		close(reached)
+		<-release
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- srv.Listen(ctx, "127.0.0.1:0", pongHandler) }()
+	waitFor(t, func() bool { return srv.Addr() != "" })
+
+	c, err := net.Dial("tcp", srv.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	<-reached
+	cancel()
+	// Let the cancel goroutine finish walking t.conns before the conn is added.
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Listen did not return after cancel")
+	}
+}
+
+// A Send admitted before Close must not dial or cache a conn after Close.
+func TestTCPSendAdmittedBeforeCloseDoesNotDial(t *testing.T) {
+	addr, _ := serve(t, newTCP(nil), "127.0.0.1:0", pongHandler)
+	c := newTCP(nil)
+	admitted := make(chan struct{})
+	release := make(chan struct{})
+	c.afterSlot = func() {
+		close(admitted)
+		<-release
+	}
+	errc := make(chan error, 1)
+	go func() {
+		_, err := ping(c, addr)
+		errc <- err
+	}()
+	<-admitted
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-errc; err == nil {
+		t.Fatal("Send after Close succeeded")
+	}
+	for _, s := range c.slots {
+		if s.conn != nil {
+			t.Fatal("conn cached after Close")
+		}
+	}
+}
