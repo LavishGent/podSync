@@ -668,3 +668,30 @@ func TestConfigValidation(t *testing.T) {
 }
 
 var _ = sort.Strings
+
+// Close during an in-progress Start must cancel hydration and wait for Start to return.
+func TestCloseDuringHydrationStopsStart(t *testing.T) {
+	net := transport.NewNetwork()
+	all := addrs("n", 2)
+	a := build(t, net, all[0], all, nil)
+	startAll(t, a)
+	c := build(t, net, all[1], all, func(cfg *Config[string, string]) {
+		cfg.HydrationTimeout = time.Hour
+	})
+	net.Partition(all[1], all[0])
+	done := make(chan error, 1)
+	go func() { done <- c.Start(context.Background()) }()
+	time.Sleep(100 * time.Millisecond)
+	closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = c.Close(closeCtx)
+	select {
+	case <-done:
+	default:
+		select {
+		case <-done:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("Start still running after Close")
+		}
+	}
+}

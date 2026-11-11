@@ -147,6 +147,7 @@ type Node[K comparable, V any] struct {
 	queues  map[string]*peerQueue
 	closing bool
 
+	startWG    sync.WaitGroup  // tracks an in-progress Start so Close can wait for it
 	rootCtx    context.Context // owns background goroutines; cancelled by Close
 	rootCancel context.CancelFunc
 	wg         sync.WaitGroup
@@ -303,6 +304,14 @@ func (n *Node[K, V]) Start(ctx context.Context) error {
 	if !n.started.CompareAndSwap(false, true) {
 		return errors.New("node: already started")
 	}
+	n.mu.Lock()
+	if n.closing {
+		n.mu.Unlock()
+		return ErrClosed
+	}
+	n.startWG.Add(1) // Close waits for Start; the closing check above makes Add safe against Wait
+	n.mu.Unlock()
+	defer n.startWG.Done()
 	listenErr := make(chan error, 1)
 	n.wg.Add(1)
 	go func() {
@@ -401,6 +410,7 @@ func (n *Node[K, V]) Close(ctx context.Context) error {
 			break
 		}
 		n.rootCancel()
+		n.startWG.Wait()
 		n.wg.Wait()
 		n.state.Store(int32(StateClosed))
 		_ = n.tr.Close()
