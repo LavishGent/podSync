@@ -2,7 +2,7 @@
 
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]] · [[../rescope_v0.1|Rescope]]
 
-> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A1 (per-pod rate-limit keys and `Cache.Range`), A3 (`Config.Secret`), A4 and A6 (README failure modes).
+> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A1 (per-pod rate-limit keys and `Cache.Range`), A2 and A3 (`Config.FirstRepairDelay`, `Config.Secret`), A4 and A6 (README failure modes), and A10 (in-cluster `demo-hit`, dependency check).
 
 ## Overview
 Expose `Node` through `pkg/podsync`, prove it in Kind with a rate-limiter demo, and rewrite the README around pod-originated state. Replaces [[archive/MS4-B_Public_API_Assembly|MS4-B]], [[archive/MS4-C_Kubernetes_Demo|MS4-C]], and [[archive/MS5-C_Technical_Docs_DX|MS5-C]]. Metrics export ([[archive/MS5-B_Observability_Metrics|MS5-B]]) stays deferred; `Stats()` is the v0.1 observability surface.
