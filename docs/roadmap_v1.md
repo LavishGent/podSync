@@ -1,5 +1,8 @@
 # PodSync Roadmap
 
+> [!WARNING]
+> **Historical document.** This is the original design, kept for its reasoning. The v0.1 plan was rescoped in 2026-11; see [[rescope_v0.1|rescope_v0.1.md]] for what changed and why, and [[backlog/Backlog_Index|Backlog Index]] for the current tickets. Where this document and the rescope disagree (versioning, transport, membership, hydration), the rescope wins.
+
 > **PodSync** is an embeddable Go library for synchronizing small, short-lived operational state across Kubernetes pods without requiring an external cache service like Redis.
 
 PodSync is designed for fast local reads, low operational overhead, and eventual consistency across a fleet of application pods.
