@@ -32,6 +32,9 @@ func (n *Node[K, V]) handle(_ context.Context, _ string, t wire.MsgType, payload
 	case wire.StateRequest:
 		// One page: this node's entries for the requested shard. A shard it
 		// does not have yields an empty page (SnapshotShard returns nil).
+		// A request may also push the requester's entries for this shard
+		// (repair); they merge like any other entry, after the page is built
+		// so the response is the responder's state as it was.
 		kes := n.store.SnapshotShard(m.Shard)
 		es := make([]wire.Entry, 0, len(kes))
 		for _, ke := range kes {
@@ -44,6 +47,18 @@ func (n *Node[K, V]) handle(_ context.Context, _ string, t wire.MsgType, payload
 		resp, err := wire.NewStateResponse(n.id, m.Shard, n.store.NumShards(), es)
 		if err != nil {
 			return 0, nil, fmt.Errorf("node: state response for shard %d: %w", m.Shard, err)
+		}
+		if len(m.EntryBlob) > 0 {
+			pushed, err := m.DecodeEntries()
+			if err != nil {
+				n.decodeErrors.Add(1)
+				return 0, nil, err
+			}
+			for _, w := range pushed {
+				if _, err := n.applyEntry(w); err != nil {
+					n.log.Warn("skipping undecodable pushed entry", "peer", m.Origin, "err", err)
+				}
+			}
 		}
 		return wire.MsgStateResponse, resp, nil
 	case wire.Ping:
@@ -78,7 +93,7 @@ func (n *Node[K, V]) hydrate(ctx context.Context) error {
 		n.cfg.shuffle(addrs)
 		received := 0
 		for _, addr := range addrs {
-			err := n.hydrateFrom(hctx, addr, prog, &received)
+			err := n.pullFrom(hctx, addr, prog, &received, nil, false)
 			if err == nil {
 				n.warnEnvelope(received)
 				n.log.Info("hydrated", "peer", addr, "entries", received)
@@ -120,10 +135,13 @@ type hydrationProgress struct {
 	numShards int // peer shard count seen so far; 0 before the first page
 }
 
-func (n *Node[K, V]) hydrateFrom(ctx context.Context, addr string, p *hydrationProgress, received *int) error {
+// pullFrom walks the shard pages of addr, merging each. received counts
+// entries received; applied (optional) counts those that changed state. With
+// push, the requester's own entries for each shard ride along in the request.
+func (n *Node[K, V]) pullFrom(ctx context.Context, addr string, p *hydrationProgress, received, applied *int, push bool) error {
 	shard := p.next
 	for {
-		resp, err := n.requestPage(ctx, addr, shard)
+		resp, err := n.requestPage(ctx, addr, shard, push)
 		if err != nil {
 			return fmt.Errorf("shard %d: %w", shard, err)
 		}
@@ -137,8 +155,11 @@ func (n *Node[K, V]) hydrateFrom(ctx context.Context, addr string, p *hydrationP
 			return fmt.Errorf("shard %d: %w", shard, err)
 		}
 		for _, w := range es {
-			if _, err := n.applyEntry(w); err != nil {
+			ok, err := n.applyEntry(w)
+			if err != nil {
 				n.log.Warn("skipping undecodable entry", "peer", addr, "err", err)
+			} else if ok && applied != nil {
+				*applied++
 			}
 		}
 		*received += len(es)
@@ -151,8 +172,18 @@ func (n *Node[K, V]) hydrateFrom(ctx context.Context, addr string, p *hydrationP
 	}
 }
 
-func (n *Node[K, V]) requestPage(ctx context.Context, addr string, shard int) (wire.StateResponse, error) {
-	req, err := wire.NewStateRequest(n.id, shard, n.store.NumShards(), nil)
+func (n *Node[K, V]) requestPage(ctx context.Context, addr string, shard int, push bool) (wire.StateResponse, error) {
+	var mine []wire.Entry
+	if push {
+		for _, ke := range n.store.SnapshotShard(shard) {
+			w, err := wire.FromEntry(ke.Key, ke.Entry, n.keys, n.vals)
+			if err != nil {
+				return wire.StateResponse{}, err
+			}
+			mine = append(mine, w)
+		}
+	}
+	req, err := wire.NewStateRequest(n.id, shard, n.store.NumShards(), mine)
 	if err != nil {
 		return wire.StateResponse{}, err
 	}

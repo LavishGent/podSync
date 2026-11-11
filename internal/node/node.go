@@ -55,6 +55,8 @@ const (
 	DefaultHydrationTimeout       = 30 * time.Second
 	DefaultHydrationRetryInterval = time.Second
 	DefaultMaxStateEntries        = 50_000
+	DefaultRepairInterval         = 30 * time.Second
+	DefaultFirstRepairDelay       = 15 * time.Second
 )
 
 // Config configures a Node. Self, Transport, Peers and ValueCodec are
@@ -93,6 +95,12 @@ type Config[K comparable, V any] struct {
 	// MaxStateEntries is the documented envelope; a hydration round that
 	// receives more logs a warning. Default 50k.
 	MaxStateEntries int
+	// RepairInterval is the period between repair ticks, jittered +-10%.
+	// Default 30s.
+	RepairInterval time.Duration
+	// FirstRepairDelay is the wait before the first repair tick after the
+	// node turns Ready (Addendum A2). Default 15s, capped at RepairInterval.
+	FirstRepairDelay time.Duration
 
 	shuffle func([]string) // test hook; default random
 }
@@ -114,6 +122,10 @@ type Stats struct {
 	ReceivedConflicts uint64
 	// DecodeErrors counts received entries that failed to decode.
 	DecodeErrors uint64
+	// Repaired counts entries applied by repair pulls.
+	Repaired uint64
+	// RepairFailures counts repair rounds that ended on a failed page.
+	RepairFailures uint64
 }
 
 // Node replicates a Store to its peers and hydrates from them at startup.
@@ -145,6 +157,7 @@ type Node[K comparable, V any] struct {
 	pending atomic.Int64 // queued or in-flight fanout mutations, all peers
 
 	dropped, sendFailures, recvMutations, recvConflicts, decodeErrors atomic.Uint64
+	repaired, repairFailures                                          atomic.Uint64
 	lastEnvelopeWarn                                                  atomic.Int64
 }
 
@@ -202,6 +215,13 @@ func New[K comparable, V any](cfg Config[K, V]) (*Node[K, V], error) {
 	if cfg.MaxStateEntries <= 0 {
 		cfg.MaxStateEntries = DefaultMaxStateEntries
 	}
+	if cfg.RepairInterval <= 0 {
+		cfg.RepairInterval = DefaultRepairInterval
+	}
+	if cfg.FirstRepairDelay <= 0 {
+		cfg.FirstRepairDelay = DefaultFirstRepairDelay
+	}
+	cfg.FirstRepairDelay = min(cfg.FirstRepairDelay, cfg.RepairInterval)
 	if cfg.shuffle == nil {
 		cfg.shuffle = func(a []string) { rand.Shuffle(len(a), func(i, j int) { a[i], a[j] = a[j], a[i] }) }
 	}
@@ -241,7 +261,7 @@ func (n *Node[K, V]) Stats() Stats {
 		StoreStats: n.store.Stats(), Peers: np, State: State(n.state.Load()),
 		Dropped: n.dropped.Load(), SendFailures: n.sendFailures.Load(),
 		ReceivedMutations: n.recvMutations.Load(), ReceivedConflicts: n.recvConflicts.Load(),
-		DecodeErrors: n.decodeErrors.Load(),
+		DecodeErrors: n.decodeErrors.Load(), Repaired: n.repaired.Load(), RepairFailures: n.repairFailures.Load(),
 	}
 }
 
@@ -318,6 +338,8 @@ func (n *Node[K, V]) Start(ctx context.Context) error {
 	}
 	n.state.CompareAndSwap(int32(StateHydrating), int32(StateReady))
 	n.state.CompareAndSwap(int32(StateStarting), int32(StateReady))
+	n.wg.Add(1)
+	go func() { defer n.wg.Done(); n.repairLoop() }()
 	return nil
 }
 
