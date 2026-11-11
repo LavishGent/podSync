@@ -47,14 +47,17 @@ func (s *shard[K, V]) snapshot(dst []KeyEntry[K, V]) []KeyEntry[K, V] {
 	return dst
 }
 
-// sweep removes expired live entries and tombstones whose
-// DeletedAt+tombstoneTTL has passed. Returns the number of entries removed.
+// sweep removes tombstones whose DeletedAt+tombstoneTTL has passed and expired
+// entries whose ExpiresAt+tombstoneTTL has passed. Expired entries keep their
+// version for the same window as tombstones so an older version cannot be
+// merged back in. Returns the number of entries removed.
 func (s *shard[K, V]) sweep(now, tombstoneTTL int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	swept := 0
 	for k, e := range s.data {
-		if (e.Deleted && e.DeletedAt+tombstoneTTL <= now) || (!e.Deleted && e.IsExpired(now)) {
+		if (e.Deleted && e.DeletedAt+tombstoneTTL <= now) ||
+			(!e.Deleted && e.ExpiresAt != 0 && e.ExpiresAt+tombstoneTTL <= now) {
 			delete(s.data, k)
 			swept++
 		}

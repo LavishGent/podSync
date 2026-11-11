@@ -237,6 +237,37 @@ func TestTombstoneSweep(t *testing.T) {
 	}
 }
 
+func TestExpiredEntryKeepsVersionForTombstoneWindow(t *testing.T) {
+	clk := clock.NewFakeClock(1_000)
+	ttl := int64(time.Hour)
+	s := NewStore[string, string](StoreOptions{NumShards: 4, Clock: clk, TombstoneTTL: time.Hour})
+
+	s.Set("k", "new", 2_000, ver(5, "a")) // expires at t=2000
+	clk.Set(2_000)
+	if _, ok := s.Get("k"); ok {
+		t.Fatal("expired entry must read as absent")
+	}
+
+	// Inside the window a repair delivers an older, non-expiring version.
+	clk.Set(2_000 + ttl - 1)
+	s.sweep()
+	if s.Merge("k", Entry[string]{Value: "old", Version: ver(3, "b")}) {
+		t.Fatal("older version accepted while the expired entry is within the window")
+	}
+	if _, ok := s.Get("k"); ok {
+		t.Fatal("older version resurrected an expired key")
+	}
+	if got := len(s.Snapshot()); got != 1 {
+		t.Fatalf("Snapshot should include the expired entry, len=%d", got)
+	}
+
+	clk.Set(2_000 + ttl)
+	s.sweep()
+	if got := len(s.Snapshot()); got != 0 {
+		t.Fatalf("expired entry not swept after the window, len=%d", got)
+	}
+}
+
 func TestTombstoneTTLDefault(t *testing.T) {
 	s := NewStore[string, string](StoreOptions{})
 	if s.opts.TombstoneTTL != time.Hour {
@@ -308,13 +339,14 @@ func TestSweeper(t *testing.T) {
 	s := NewStore[string, string](StoreOptions{
 		NumShards:     4,
 		SweepInterval: 10 * time.Millisecond,
+		TombstoneTTL:  100, // ns
 		Clock:         clk,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s.Start(ctx)
 
-	// "expiring" expires at t=500 which is already past (clk=1000).
+	// "expiring" expired at t=500; 500+100 <= 1000, so it is past the window.
 	s.Set("expiring", "v", 500, ver(1, "a"))
 	s.Set("live", "v", 0, ver(1, "a"))
 
@@ -335,6 +367,7 @@ func TestSweeperDoesNotSweepBeforeExpiry(t *testing.T) {
 	s := NewStore[string, string](StoreOptions{
 		NumShards:     4,
 		SweepInterval: 10 * time.Millisecond,
+		TombstoneTTL:  100, // ns
 		Clock:         clk,
 	})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -351,7 +384,14 @@ func TestSweeperDoesNotSweepBeforeExpiry(t *testing.T) {
 		t.Errorf("expected key to still be live (clk=100, expires=500), LiveKeys=%d", stats.LiveKeys)
 	}
 
-	// Now advance past expiry and let sweeper run again.
-	clk.Set(501)
+	// Expired but still inside the tombstone window: kept.
+	clk.Set(550)
+	time.Sleep(50 * time.Millisecond)
+	if got := s.Stats().TotalEntries; got != 1 {
+		t.Errorf("expired entry swept inside the window, TotalEntries=%d", got)
+	}
+
+	// Past ExpiresAt + TombstoneTTL: swept.
+	clk.Set(600)
 	waitFor(t, "key to be swept after clock advance", func() bool { return s.Stats().TotalEntries == 0 })
 }

@@ -18,12 +18,15 @@ type StoreOptions struct {
 	// NumShards is the total number of shard buckets to allocate.
 	// The default total is 64.
 	NumShards int
-	// SweepInterval is the interval at which to sweep expired Entries.
+	// SweepInterval is the interval at which to sweep entries that are past their TombstoneTTL window.
 	SweepInterval time.Duration
-	// TombstoneTTL is how long a tombstone is kept before the sweeper removes
-	// it. The default is 1h. A partition longer than TombstoneTTL can resurrect
-	// a deleted key: a peer that missed the delete still holds the live value,
-	// and once every tombstone is gone, repair copies that value back.
+	// TombstoneTTL is how long the sweeper keeps a deleted entry after
+	// DeletedAt, and an expired entry after ExpiresAt, before removing it. The
+	// default is 1h. Until then the entry's version still wins merges, so an
+	// older version cannot be repaired back in. A partition longer than
+	// TombstoneTTL can resurrect a deleted or expired key: a peer that missed
+	// the newer write still holds the older value, and once the local entry is
+	// swept, repair copies that value back.
 	TombstoneTTL time.Duration
 	// Clock is the time source for Store operations. By default, Clock is set to
 	// SystemClock.
