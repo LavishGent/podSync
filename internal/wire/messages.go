@@ -11,7 +11,8 @@ import (
 // MsgType identifies the message carried by a frame.
 type MsgType uint8
 
-// Message types. The numeric values are part of the wire format.
+// Message types. The numeric values are part of the wire format and must
+// never be reused for a different message.
 const (
 	MsgMutation MsgType = iota + 1
 	MsgMutationAck
@@ -52,7 +53,7 @@ type Entry struct {
 	Version   version.Version
 }
 
-// Every message carries Origin so the receiver can Observe the sender's clock
+// Every request carries Origin so the receiver can Observe the sender's clock
 // and log the peer by name.
 
 // Mutation replicates one write or delete.
@@ -67,24 +68,26 @@ type MutationAck struct {
 	Applied bool
 }
 
-// StateRequest asks for one shard of the responder's state. Entries carries
+// StateRequest asks for one shard of the responder's state. EntryBlob carries
 // the requester's own entries for that shard (the repair push side) and is
-// empty for hydration.
+// empty for hydration. Entries are packed as length-prefixed, individually
+// encoded entries (see EncodeEntries) so the count is bounded before any are
+// decoded; build with NewStateRequest, read with DecodeEntries.
 type StateRequest struct {
 	Origin    string
 	Shard     int
 	NumShards int
-	Entries   []Entry
+	EntryBlob []byte
 }
 
 // StateResponse is one page of state: the responder's entries for Shard. A
 // request for a shard the responder does not have gets an empty page.
-// NumShards is the responder's shard count.
+// NumShards is the responder's shard count. EntryBlob is as in StateRequest.
 type StateResponse struct {
 	Origin    string
 	Shard     int
 	NumShards int
-	Entries   []Entry
+	EntryBlob []byte
 }
 
 // Ping is a liveness probe.

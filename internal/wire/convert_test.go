@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -148,5 +149,45 @@ func TestConvertCodecErrors(t *testing.T) {
 	}
 	if _, _, err := ToEntry(Entry{Key: []byte("k"), Value: []byte("v")}, kc, failCodec{}); err == nil {
 		t.Fatal("unmarshal error must surface")
+	}
+}
+
+func TestToEntryRejectsZeroVersion(t *testing.T) {
+	_, _, err := ToEntry[string, string](Entry{Key: []byte("k"), Value: []byte("v")}, mustKC(t), strCodec{})
+	if !errors.Is(err, ErrZeroVersion) {
+		t.Fatalf("err = %v, want ErrZeroVersion", err)
+	}
+}
+
+func mustKC(t *testing.T) KeyCodec[string] {
+	kc, err := NewKeyCodec[string]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return kc
+}
+
+func TestFullPathRoundtrip(t *testing.T) {
+	kc := mustKC(t)
+	in := storage.Entry[string]{Value: "v", ExpiresAt: 123, Version: version.Version{Clock: 9, NodeID: "n"}}
+	w, err := FromEntry("key", in, kc, strCodec{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := WriteFrame(&buf, MsgMutation, Mutation{Origin: "n", Entry: w}); err != nil {
+		t.Fatal(err)
+	}
+	typ, pl, err := ReadFrame(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := DecodeMessage(typ, pl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, out, err := ToEntry[string, string](msg.(Mutation).Entry, kc, strCodec{})
+	if err != nil || k != "key" || out != in {
+		t.Fatalf("got %q %+v %v", k, out, err)
 	}
 }

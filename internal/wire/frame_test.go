@@ -41,8 +41,8 @@ func TestRoundtripEveryMessageType(t *testing.T) {
 	}{
 		{MsgMutation, Mutation{Origin: "a", Entry: e}},
 		{MsgMutationAck, MutationAck{Applied: true}},
-		{MsgStateRequest, StateRequest{Origin: "a", Shard: 3, NumShards: 64, Entries: []Entry{e}}},
-		{MsgStateResponse, StateResponse{Origin: "a", Shard: 3, NumShards: 64, Entries: []Entry{e, e}}},
+		{MsgStateRequest, mustReq(t, "a", 3, 64, []Entry{e})},
+		{MsgStateResponse, mustResp(t, "a", 3, 64, []Entry{e, e})},
 		{MsgPing, Ping{Origin: "a"}},
 		{MsgPong, Pong{Origin: "a", Clock: 42}},
 	}
@@ -73,8 +73,8 @@ func TestRoundtripEveryMessageType(t *testing.T) {
 func TestTruncatedHeader(t *testing.T) {
 	a, b := pipe(t)
 	go func() { a.Write([]byte{0, 0, 0}); a.Close() }()
-	if _, _, err := ReadFrame(b); err == nil {
-		t.Fatal("expected error for truncated header")
+	if _, _, err := ReadFrame(b); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("err = %v, want ErrUnexpectedEOF", err)
 	}
 }
 
@@ -179,5 +179,58 @@ func TestDecodeSizedForMessage(t *testing.T) {
 	}
 	if !strings.Contains(MsgType(9).String(), "9") {
 		t.Fatal("String should include unknown numeric value")
+	}
+}
+
+func mustReq(t *testing.T, o string, s, n int, es []Entry) StateRequest {
+	t.Helper()
+	m, err := NewStateRequest(o, s, n, es)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func mustResp(t *testing.T, o string, s, n int, es []Entry) StateResponse {
+	t.Helper()
+	m, err := NewStateResponse(o, s, n, es)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+type shortWriter struct{}
+
+func (shortWriter) Write(p []byte) (int, error) { return len(p) - 1, nil }
+
+func TestWriteFrameShortWrite(t *testing.T) {
+	if err := WriteFrame(shortWriter{}, MsgPing, Ping{Origin: "a"}); !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("err = %v, want ErrShortWrite", err)
+	}
+}
+
+func TestDecodeRejectsTrailingBytes(t *testing.T) {
+	var buf bytes.Buffer
+	_ = WriteFrame(&buf, MsgPing, Ping{Origin: "a"})
+	_, pl, _ := ReadFrame(&buf)
+	if _, err := DecodeMessage(MsgPing, append(pl, 0xff)); !errors.Is(err, ErrTrailingBytes) {
+		t.Fatalf("err = %v, want ErrTrailingBytes", err)
+	}
+}
+
+func TestReadFrameLargePayloadChunked(t *testing.T) {
+	var buf bytes.Buffer
+	m := Mutation{Origin: "a", Entry: Entry{Value: bytes.Repeat([]byte("z"), 1<<20)}}
+	if err := WriteFrame(&buf, MsgMutation, m); err != nil {
+		t.Fatal(err)
+	}
+	typ, pl, err := ReadFrame(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := DecodeMessage(typ, pl)
+	if err != nil || len(got.(Mutation).Entry.Value) != 1<<20 {
+		t.Fatalf("got %v", err)
 	}
 }

@@ -1,3 +1,8 @@
+// Package wire defines the messages peers exchange and the framing that
+// carries them.
+//
+// Wire versioning lives in the connection handshake (the A3 hello magic
+// "PSY1"), not in frames. MsgType values must never be reused.
 package wire
 
 import (
@@ -14,12 +19,17 @@ const MaxFrameSize = 16 << 20
 
 const headerSize = 5
 
+// readChunk is the initial payload buffer size in ReadFrame.
+const readChunk = 64 << 10
+
 // Errors returned by the framing helpers.
 var (
 	// ErrFrameTooLarge reports a payload over MaxFrameSize.
 	ErrFrameTooLarge = errors.New("wire: frame exceeds MaxFrameSize")
 	// ErrUnknownMsgType reports a frame whose MsgType is not defined.
 	ErrUnknownMsgType = errors.New("wire: unknown message type")
+	// ErrTrailingBytes reports bytes after the encoded value in a payload.
+	ErrTrailingBytes = errors.New("wire: trailing bytes after message")
 )
 
 // WriteFrame gob-encodes msg and writes it as one frame:
@@ -39,8 +49,14 @@ func WriteFrame(w io.Writer, t MsgType, msg any) error {
 	}
 	binary.BigEndian.PutUint32(b, uint32(n))
 	b[4] = byte(t)
-	_, err := w.Write(b)
-	return err
+	n, err := w.Write(b)
+	if err != nil {
+		return err
+	}
+	if n != len(b) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 // ReadFrame reads one frame and returns its type and raw payload. A length
@@ -54,19 +70,30 @@ func ReadFrame(r io.Reader) (MsgType, []byte, error) {
 	if n > MaxFrameSize {
 		return 0, nil, fmt.Errorf("%w: header announces %d bytes", ErrFrameTooLarge, n)
 	}
-	payload := make([]byte, n)
-	if _, err := io.ReadFull(r, payload); err != nil {
+	// Grow with the bytes actually received instead of trusting the header,
+	// so a peer that announces 16 MiB and stalls pins little memory.
+	var buf bytes.Buffer
+	buf.Grow(int(min(n, readChunk)))
+	if _, err := io.CopyN(&buf, r, int64(n)); err != nil {
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
 		}
 		return 0, nil, err
 	}
-	return MsgType(hdr[4]), payload, nil
+	return MsgType(hdr[4]), buf.Bytes(), nil
 }
 
-// Decode gob-decodes payload into the value pointed to by into.
+// Decode gob-decodes payload into the value pointed to by into. Bytes after
+// the encoded value return ErrTrailingBytes.
 func Decode(payload []byte, into any) error {
-	return gob.NewDecoder(bytes.NewReader(payload)).Decode(into)
+	r := bytes.NewReader(payload)
+	if err := gob.NewDecoder(r).Decode(into); err != nil {
+		return err
+	}
+	if r.Len() != 0 {
+		return ErrTrailingBytes
+	}
+	return nil
 }
 
 // DecodeMessage decodes payload into the message struct for t and returns it
@@ -78,9 +105,9 @@ func DecodeMessage(t MsgType, payload []byte) (any, error) {
 	case MsgMutationAck:
 		return decodeAs[MutationAck](payload)
 	case MsgStateRequest:
-		return decodeAs[StateRequest](payload)
+		return decodeValidated[StateRequest](payload)
 	case MsgStateResponse:
-		return decodeAs[StateResponse](payload)
+		return decodeValidated[StateResponse](payload)
 	case MsgPing:
 		return decodeAs[Ping](payload)
 	case MsgPong:
@@ -93,6 +120,19 @@ func decodeAs[M any](payload []byte) (any, error) {
 	var m M
 	if err := Decode(payload, &m); err != nil {
 		return nil, fmt.Errorf("wire: decode %T: %w", m, err)
+	}
+	return m, nil
+}
+
+type validator interface{ Validate() error }
+
+func decodeValidated[M validator](payload []byte) (any, error) {
+	m, err := decodeAs[M](payload)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.(M).Validate(); err != nil {
+		return nil, err
 	}
 	return m, nil
 }

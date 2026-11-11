@@ -28,8 +28,15 @@ type BytesCodec struct{}
 // Marshal returns b.
 func (BytesCodec) Marshal(b []byte) ([]byte, error) { return b, nil }
 
-// Unmarshal returns b.
-func (BytesCodec) Unmarshal(b []byte) ([]byte, error) { return b, nil }
+// Unmarshal returns b, with nil normalised to an empty non-nil slice (gob
+// delivers an empty value as nil, so this keeps nil and []byte{} equal across
+// peers). The result aliases b.
+func (BytesCodec) Unmarshal(b []byte) ([]byte, error) {
+	if b == nil {
+		return []byte{}, nil
+	}
+	return b, nil
+}
 
 // StringCodec encodes string values as their bytes.
 type StringCodec struct{}

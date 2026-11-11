@@ -80,7 +80,13 @@ Define the messages peers exchange and the framing that carries them. `encoding/
 
 | Benchmark | ns/op | B/op | allocs/op |
 |---|---|---|---|
-| `BenchmarkEncodeMutation` (`WriteFrame`) | 1850 | 3232 | 27 |
-| `BenchmarkDecodeMutation` (`Decode`) | 6475 | 9648 | 220 |
+| `BenchmarkEncodeMutation` (`WriteFrame`) | 1768 | 3232 | 27 |
+| `BenchmarkDecodeMutation` (`Decode`) | 6568 | 9648 | 220 |
 
 Decode dominates because each frame re-sends gob type info. Fine at v0.1 volumes; revisit with one encoder/decoder pair per connection in T3 if profiles show it.
+
+## Review fixes
+- State messages carry entries as `EntryBlob` (length-prefixed, individually gob-encoded entries) instead of a gob `[]Entry`, so a sparse payload cannot amplify into large allocations. Limits: `MaxEntriesPerMessage` 4096, `MaxEntrySize` 4 MiB (`ErrTooManyEntries`, `ErrEntryTooLarge`), checked by a structural walk before any entry is decoded. Build with `NewStateRequest`/`NewStateResponse`, read with `DecodeEntries`.
+- `StateRequest`/`StateResponse.Validate()` (0 <= Shard < NumShards <= `MaxShards` 1<<16) runs inside `DecodeMessage`.
+- `WriteFrame` returns `io.ErrShortWrite` on a short write; `ReadFrame` grows its buffer with bytes received; `Decode` rejects trailing bytes; `ToEntry` rejects a zero Version (`ErrZeroVersion`).
+- Mutation benchmarks re-run after the change (Mutation encoding is untouched): 1768 / 6568 ns/op.

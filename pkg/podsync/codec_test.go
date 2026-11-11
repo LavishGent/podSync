@@ -67,3 +67,10 @@ func TestUnsupportedKeyTypeRejected(t *testing.T) {
 		t.Fatal("array key must be rejected")
 	}
 }
+
+func TestBytesCodecNilBecomesEmpty(t *testing.T) {
+	got, err := BytesCodec{}.Unmarshal(nil)
+	if err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("got %#v %v", got, err)
+	}
+}
