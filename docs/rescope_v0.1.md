@@ -65,43 +65,70 @@ v0.1 is designed for **under ~50k entries and under ~25 pods**. Full-state repai
 
 ## Addendum (2026-11, before T1)
 
-A review of the six tickets found seven gaps. Each decision below overrides the ticket text it names; the tickets carry a one-line pointer back here.
+A review of the six tickets found the gaps below. Each decision overrides the ticket text it names; the tickets carry a one-line pointer back here.
 
 ### A1. Rate-limiter demo uses one writer per key (T6)
 
-LWW loses concurrent increments when two pods write the same counter key. The demo therefore gives each pod its own key, `limit:<client>:<nodeID>`, holding that pod's count for the current window. A request sums every `limit:<client>:*` entry whose window matches the current one. Each key has exactly one writer, so LWW never discards an increment; the sum is eventually consistent and can overshoot the limit by the hits still in flight between pods.
+LWW keeps only one of two concurrent writes to the same key. The demo therefore gives each pod its own key, `limit:<client>:<nodeID>`, whose value is `{Window, Count}` for that pod. A request sums `Count` over every `limit:<client>:*` entry whose `Window` is the current one. Each key has exactly one writer pod, so replication never discards an increment. Concurrent HTTP handlers on the same pod would still race on read, increment, and `Set`, so the demo **serializes the check, window rollover, increment, and `Set` under a per-pod mutex**. Counter keys carry a TTL of two windows (A6). The global sum is eventually consistent: it can overshoot the limit by the hits still in flight between pods.
 
-Summing needs to enumerate keys, so `Cache` gains `Range(fn func(K, V) bool)` over live entries. It is O(entries); the demo's key count is tiny, and the doc comment says so.
+Summing needs to enumerate keys, so `Cache` gains `Range(fn func(K, V) bool)` over live entries. `Range` copies each shard under its read lock and calls `fn` after unlocking, so `fn` may call back into the `Cache`. It is O(entries), which the doc comment states. T6 tests cover live-only filtering (no tombstones, no expired entries), early stop when `fn` returns false, a `Set` from inside `fn`, and a concurrent single-pod demo test that asserts the exact accepted count.
 
 ### A2. Hydration and DNS readiness: accept the gap, repair early (T4, T5)
 
-A headless Service publishes only ready pods by default. A hydrating pod is not ready, so peers do not send it writes until it turns ready and their next DNS refresh sees it. Writes in that window (up to `RefreshInterval` plus the readiness probe period) are missed by the new pod.
+A headless Service publishes only ready pods by default. A hydrating pod is not ready, so peers do not send it writes until kubelet sees it ready, the endpoints and DNS update, and each peer's next refresh picks it up. The new pod misses writes made in that window.
 
-v0.1 accepts the gap instead of setting `publishNotReadyAddresses: true`. Publishing not-ready pods would let a hydrating peer answer a `StateRequest` with empty state, which needs a readiness flag on the wire and a rule for "every peer is starting". T5 closes the gap instead: **the first repair tick after a node turns `Ready` fires after `2 × RefreshInterval`**, not after a full `RepairInterval`. By then every peer has re-resolved DNS and includes the new pod. The manifests keep the default and document why.
+v0.1 accepts the gap instead of setting `publishNotReadyAddresses: true`. Publishing not-ready pods would let a hydrating peer answer a `StateRequest` with empty state, which needs a readiness flag on the wire and a rule for "every peer is starting". Repair narrows the gap instead, best effort: **after a node turns `Ready`, its first repair tick fires after `FirstRepairDelay`** (default 15s, capped at `RepairInterval`) instead of a full `RepairInterval`. 15s covers a 2s readiness probe period, DNS caching, and a 5s `RefreshInterval`. If a peer has still not seen the new pod by then, the normal repair ticks deliver the missed writes. The demo manifest sets `readinessProbe.periodSeconds: 2` and documents why the default `publishNotReadyAddresses: false` is kept. T5 tests that the first tick fires at `FirstRepairDelay`, not at `RepairInterval`.
 
 ### A3. Optional shared-secret handshake on the replication port (T3)
 
-Anything that can reach the replication port can write any key. `TCP` gains an optional `Secret []byte`. When set, every new connection runs a mutual challenge-response before the first frame:
+Anything that can reach the replication port can write any key. `TCP` gains an optional `Secret []byte`, which must be at least 32 bytes when set. Every new connection starts with a hello, so a configuration mismatch fails at once with a clear error instead of a timeout:
 
-1. The listener sends a 32-byte random nonce `Ns`.
-2. The dialer replies with its own 32-byte nonce `Nc` and `HMAC-SHA256(secret, "podsync/v1 client" || Ns || Nc)`.
-3. The listener checks the MAC with `hmac.Equal` and replies `HMAC-SHA256(secret, "podsync/v1 server" || Nc || Ns)`.
-4. The dialer checks that MAC. Any failure or a timeout (bounded by `DialTimeout`) closes the connection.
+1. Both sides send a 5-byte hello: the magic `PSY1` and a mode byte (`0` = no secret, `1` = secret). If the modes differ, both sides close the connection and log `handshake mode mismatch`.
+2. In mode `1`, the listener sends a 32-byte random nonce `Ns`.
+3. The dialer replies with its own 32-byte nonce `Nc` and `HMAC-SHA256(secret, "podsync/v1 client" || Ns || Nc)`.
+4. The listener checks the MAC with `hmac.Equal` and replies `HMAC-SHA256(secret, "podsync/v1 server" || Nc || Ns)`. The dialer checks that MAC.
 
-Both sides must use the same setting; a mismatch fails the handshake and closes the connection. This proves the peer knows the secret. It does not encrypt traffic or authenticate individual frames after the handshake. T3 adds a README security note saying so, and `deployments/kubernetes/networkpolicy.yaml`, which admits replication-port traffic only from pods with the app label. T6 exposes the option as `Config.Secret`.
+Both sides bound the whole handshake with a deadline (`DialTimeout` on the dialer, the same value on the listener), and any failure closes the connection before a frame handler runs. Dialing and the handshake run outside the lock that guards the connection map, so one unreachable peer cannot block sends to other peers (A5).
+
+This proves the peer knows the secret. It does not encrypt traffic, authenticate frames after the handshake, or bind the handshake to an address, so an attacker who is on-path or who can make a real peer dial it can relay a handshake. The README security note states these limits and recommends a NetworkPolicy, and a service mesh for encryption. T3 adds `deployments/kubernetes/networkpolicy.yaml`, which admits replication-port traffic only from pods with the app label. T6 exposes the option as `Config.Secret`.
+
+T3 tests: matching secrets round-trip; a wrong secret is rejected on both sides and the handler never runs; mode mismatch in both directions fails fast with the mismatch error; a dialer that connects and sends nothing is closed at the listener's deadline without leaking a goroutine; a replayed `Nc` and MAC from an earlier connection is rejected.
 
 ### A4. `ExpiresAt` stays an absolute time; skew is documented (T1, T2)
 
-Entries keep an absolute `ExpiresAt` in unix nanoseconds. Replicating a relative TTL would make the same version carry a different `ExpiresAt` on every node, which breaks the snapshot-equality convergence tests and the "same version means same entry" rule. The cost is that an entry expires early or late on a peer by that peer's clock skew. Kubernetes nodes run NTP and are normally within tens of milliseconds, so v0.1 documents the tolerance: **TTLs should be at least seconds long, well above expected skew**. The `Entry.ExpiresAt` doc comment (T1) and the README failure-modes section (T6) state this. `DeletedAt` is only read by the local tombstone sweeper, so skew there shifts GC timing and nothing else.
+Entries keep an absolute `ExpiresAt` in unix nanoseconds. Replicating a relative TTL would make the same version carry a different `ExpiresAt` on every node, which breaks the snapshot-equality convergence tests and the rule that one version means one entry. The cost is that an entry expires early or late on a peer by that peer's clock skew. Kubernetes nodes run NTP and are normally within tens of milliseconds of each other, so v0.1 documents the tolerance: **TTLs should be at least seconds long, well above expected skew**. The `Entry.ExpiresAt` doc comment (T1) and the README failure-modes section (T6) state this. `DeletedAt` is only read by the local sweeper, so skew there shifts cleanup timing and nothing else.
 
 ### A5. Fanout uses bounded per-peer queues (T4)
 
-T4's single replication loop waits for every peer before taking the next mutation, so one slow peer slows writes to all of them. T4 instead keeps **one queue per peer** (default capacity 1024, `OutboxSize`), each drained in order by its own goroutine with `RequestTimeout` per send. `Set` enqueues the mutation on every peer queue without blocking. When a queue is full, the **oldest** queued mutation is dropped to make room: under LWW a newer mutation is worth more than an older one, and per-key the newest value is the one that matters. Each drop increments `Stats().Dropped`. Queues are created and torn down as the peer set changes. `Close` drains every queue until empty or `ctx` is done. T5 repair delivers anything dropped. The T4 overflow test uses a peer whose handler blocks, since a peer that fails fast never fills its queue.
+T4's single replication loop waits for every peer before taking the next mutation, so one slow peer slows writes to all of them. T4 instead keeps **one queue per peer**: a mutex-guarded ring buffer (capacity `OutboxSize`, default 1024) plus a one-slot signal channel, drained in order by one goroutine per peer with `RequestTimeout` per send. `Set` enqueues on every peer queue without blocking, holding the read lock of the peer-queue map; adding and removing peers takes the write lock.
+
+When a queue is full, the **oldest** queued mutation is dropped. The oldest mutation is the one most likely to have been overwritten by a later write or already delivered by repair. Each drop increments `Stats().Dropped`, which therefore counts per peer, not per write. When a peer leaves the peer set, its sender goroutine is cancelled and its queued mutations are discarded without counting as drops. `Close` drains every queue until all are empty or `ctx` is done, then returns. T5 repair delivers anything dropped.
+
+T4 tests, all with `transport.Memory`: a peer whose handler blocks until its `ctx` is done does not delay delivery to a second peer; with a small queue and a blocked peer, the drop count is exact and the surviving mutations are the newest ones; `Close` delivers all 100 keys to every peer; `Close` returns once `ctx` is done when one peer is blocked. T5 adds a test that repair delivers a key evicted from a full queue.
 
 ### A6. A departed pod's entries live until their TTL
 
 PodSync has no per-node ownership of entries. When a pod leaves, the entries it wrote stay on every other pod until their TTL expires; entries written without a TTL stay until deleted. Applications that store per-pod state (A1, presence) should always set a TTL. The README failure-modes section (T6) states this.
 
-### A7. Housekeeping (this PR)
+### A7. Expired entries are kept as long as tombstones (T1)
+
+The existing sweeper deletes an expired entry outright. Its version goes with it, so a peer that missed the newer write can later repair an older, non-expiring version back in. T1 therefore treats an expired entry like a tombstone: **the sweeper removes deleted or expired entries only once `DeletedAt` or `ExpiresAt` is older than `TombstoneTTL`**. Reads already treat expired entries as absent, and `Snapshot()` includes them. T1 adds a fake-clock test: a newer entry expires and is swept past the window, while inside the window an older version from repair is rejected.
+
+### A8. State transfer is paged by shard (T2, T4, T5)
+
+One `StateResponse` carrying the whole store does not fit in a 16 MiB frame once values average more than about 300 bytes at 50k entries, and then hydration and repair fail every time. State transfer is therefore **one request per shard**:
+
+- `StateRequest{Origin, Shard, Entries}` and `StateResponse{Origin, Shard, NumShards, Entries}` (T2).
+- The requester asks for shard 0, learns `NumShards` from the response, and asks for each remaining shard. Every page is merged as it arrives; LWW makes partial or out-of-order pages safe.
+- `MaxStateEntries` stays the documented envelope. A node over it logs the envelope warning once per hydration or repair round, and still serves every page. A single page that cannot be encoded under `MaxFrameSize` makes that request fail with an error naming the shard.
+- T5's push side sends the requester's own entries for the same shard in `StateRequest.Entries`, under the same size rule as the ticket, and only when both nodes have the same shard count.
+
+T4's TCP smoke test also hydrates a node whose total state is larger than `MaxFrameSize` (for example 20k entries with 1 KiB values).
+
+### A9. Keys are `string` or integer types; no `[]byte` keys (T2)
+
+Store keys must be `comparable`, and `[]byte` is not, so T2's `KeyCodec` has built-ins for `string` and the integer types only. Applications with byte-slice keys convert them to `string`.
+
+### A10. Housekeeping (this PR)
 
 CI reads the Go version from `go.mod` (`go-version-file`), so the two can no longer drift. `roadmap_v1.md` and `steps_breakdown_v1.md` already carry superseded banners. [[go_1.27_upgrade|go_1.27_upgrade.md]] is rewritten to match the protobuf-free repo; the Go bump itself is not part of v0.1.

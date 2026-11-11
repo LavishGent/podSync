@@ -19,8 +19,9 @@ How to move PodSync from Go 1.26.3 to Go 1.27 when we choose to. This is not par
    ```sh
    GOTOOLCHAIN=go1.27.0 go vet ./...
    GOTOOLCHAIN=go1.27.0 go test -race -count=1 ./...
-   GOTOOLCHAIN=go1.27.0 gofmt -l .
+   "$(GOTOOLCHAIN=go1.27.0 go env GOROOT)/bin/gofmt" -l .
    ```
+   `GOTOOLCHAIN` only switches the `go` command, so call the toolchain's own `gofmt` by path.
 3. Optionally bump the local Go install (mise) so `go version` reports 1.27 without `GOTOOLCHAIN`.
 
 ## Open decisions
