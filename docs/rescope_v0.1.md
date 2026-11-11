@@ -134,7 +134,7 @@ Store keys must be `comparable`, and `[]byte` is not, so T2's `KeyCodec` has bui
 
 ### A10. Test-plan corrections (T5, T6)
 
-- T5 over-envelope test: the requester pulls from a peer that holds `MaxStateEntries + 1` entries, and the requester logs the warning.
+- T5 over-envelope test: the requester pulls from a peer that holds `MaxStateEntries + 1` entries, and the requester logs the warning exactly once for that round.
 - T5 tombstone tests: wait for the first `Set` to reach B, then partition **before** the `Delete` on A, and check that B still holds the old value before healing. In the past-TTL case, check that A's tombstone has been swept before healing.
 - T6 `demo-hit`: `kubectl port-forward` to a Service pins one pod, so the demo sends its requests from a pod inside the cluster through the Service and shows several distinct `X-Pod` values.
 - T6 dependency check: `go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...` must print only packages under `github.com/LavishGent/podsync`.
