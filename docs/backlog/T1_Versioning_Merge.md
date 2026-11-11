@@ -2,6 +2,8 @@
 
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]] · [[../rescope_v0.1|Rescope]]
 
+> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A4 (`ExpiresAt` skew is documented, not corrected).
+
 ## Overview
 Give every entry a Lamport-clock version and route every write (local or remote) through a single `merge` that applies Last-Write-Wins. Replaces [[archive/MS1-B_Versioning_Identity|MS1-B]].
 

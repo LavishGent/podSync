@@ -2,6 +2,8 @@
 
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]] · [[../rescope_v0.1|Rescope]]
 
+> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A3 (optional shared-secret handshake, README security note, NetworkPolicy example).
+
 ## Overview
 A minimal request/response TCP transport with one persistent connection per peer, and a peer set driven by DNS instead of gossip membership. Replaces [[archive/MS2-A_TCP_Framing_Server|MS2-A]], [[archive/MS2-B_Membership_Discovery|MS2-B]], and [[archive/MS3-B_SWIM_Probing|MS3-B]]. There is no SWIM, no peer health state, and no retry loop: kubelet owns failure detection, and T5 repair owns recovery from dropped sends.
 

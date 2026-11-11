@@ -2,6 +2,8 @@
 
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]] · [[../rescope_v0.1|Rescope]]
 
+> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A4 (`ExpiresAt` stays absolute).
+
 ## Overview
 Define the messages peers exchange and the framing that carries them. `encoding/gob` for the envelope, a user-pluggable `Codec[V]` for values. Replaces [[archive/MS1-C_Codecs_Protobuf|MS1-C]]; protobuf and snappy have already been removed from the repo.
 

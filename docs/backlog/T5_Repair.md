@@ -2,6 +2,8 @@
 
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]] · [[../rescope_v0.1|Rescope]]
 
+> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A2 (first repair tick fires `2 × RefreshInterval` after `Ready`).
+
 ## Overview
 Periodic full-state exchange with one random peer so that dropped sends, partitions, and overflowed outboxes converge anyway. Replaces [[archive/MS4-A_Active_Anti_Entropy|MS4-A]]. No digests in v0.1; the state request from T4 is reused as-is.
 

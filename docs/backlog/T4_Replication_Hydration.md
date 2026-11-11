@@ -2,6 +2,8 @@
 
 > 📍 [[Backlog_Index|Backlog Index]] · [[kanban_board|Kanban Board]] · [[../rescope_v0.1|Rescope]]
 
+> **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A2 (hydration DNS gap is accepted) and A5 (bounded per-peer queues replace the single outbox and fanout wait).
+
 ## Overview
 Wire the store, versioning, transport, and peer set together into a node that replicates writes to every peer and hydrates from a peer at startup. Replaces [[archive/MS2-C_Replication_Buffers|MS2-C]], [[archive/MS3-A_Replication_Worker|MS3-A]], and [[archive/MS3-C_Hydration_Lifecycle|MS3-C]]. No worker pool, no dedup cache, no mutation buffering during hydration; see [[../rescope_v0.1|Rescope]] for why each was dropped.
 
