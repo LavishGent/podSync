@@ -181,6 +181,15 @@ if err := cache.Close(ctx); err != nil {
 
 ---
 
+## Security
+
+The replication port has no authentication by default: anything that can reach it can write any key. Two mitigations:
+
+- **NetworkPolicy (recommended).** Admit the replication port only from your own pods. See [`deployments/kubernetes/networkpolicy.yaml`](deployments/kubernetes/networkpolicy.yaml).
+- **Optional shared-secret handshake (off by default).** Set a secret of at least 32 bytes, identical on every node, and each connection must prove it knows the secret (HMAC-SHA256 challenge/response) before any frame is processed. A node with a secret and a node without one refuse each other immediately (`handshake mode mismatch`).
+
+The handshake proves the peer knows the secret. It does **not** encrypt traffic, authenticate frames after the handshake, or bind the handshake to an address, so an on-path attacker, or one who can make a real peer dial it, can relay a handshake. For confidentiality and stronger identity, use a service mesh (mTLS).
+
 ## What PodSync Is NOT For
 
 PodSync is explicit about its scope. Do not use it for:
