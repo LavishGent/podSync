@@ -6,7 +6,6 @@ kanban-plugin: board
 
 ## Ready
 
-- [ ] [[backlog/T2_Wire_Encoding|T2: Wire Encoding]]
 - [ ] [[backlog/T3_Transport_Peers|T3: Transport & Peer Resolution]]
 - [ ] [[backlog/T4_Replication_Hydration|T4: Replication & Hydration]]
 - [ ] [[backlog/T5_Repair|T5: Repair]]
@@ -15,6 +14,7 @@ kanban-plugin: board
 ## In Progress
 
 - [ ] [[backlog/T1_Versioning_Merge|T1: Versioning & Merge Rule]]
+- [ ] [[backlog/T2_Wire_Encoding|T2: Wire Encoding]]
 
 
 

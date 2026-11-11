@@ -7,7 +7,7 @@
 ## Overview
 Define the messages peers exchange and the framing that carries them. `encoding/gob` for the envelope, a user-pluggable `Codec[V]` for values. Replaces [[archive/MS1-C_Codecs_Protobuf|MS1-C]]; protobuf and snappy have already been removed from the repo.
 
-- **Status**: Ready
+- **Status**: In Progress
 - **Dependencies**: [[T1_Versioning_Merge|T1]] (needs `version.Version`)
 
 ## Detailed Steps
@@ -73,3 +73,14 @@ Define the messages peers exchange and the framing that carries them. `encoding/
 2. `pkg/podsync/codec_test.go`: JSON roundtrip for a struct, bytes identity, string identity, unsupported key type rejected.
 3. `internal/wire/bench_test.go`: encode/decode a 100-byte mutation, record ns/op and allocs in the ticket on completion.
 4. Confirm `go.mod` still has no `require` block.
+
+## Benchmark results
+
+100-byte value mutation, fresh gob encoder/decoder per frame (Apple M5 Pro, Go 1.26.3, `go test -bench . -benchmem ./internal/wire`):
+
+| Benchmark | ns/op | B/op | allocs/op |
+|---|---|---|---|
+| `BenchmarkEncodeMutation` (`WriteFrame`) | 1850 | 3232 | 27 |
+| `BenchmarkDecodeMutation` (`Decode`) | 6475 | 9648 | 220 |
+
+Decode dominates because each frame re-sends gob type info. Fine at v0.1 volumes; revisit with one encoder/decoder pair per connection in T3 if profiles show it.
