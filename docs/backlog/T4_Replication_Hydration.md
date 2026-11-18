@@ -4,6 +4,13 @@
 
 > **Addendum:** the [[../rescope_v0.1#Addendum (2026-11, before T1)|rescope addendum]] changes this ticket: A2 (hydration DNS gap is accepted), A5 (bounded per-peer queues replace the single outbox), and A8 (paged state transfer).
 
+> **Carry-forward from T2 and T3 (read before starting):**
+> - Use `wire.NewStateRequest`, `wire.NewStateResponse` and `DecodeEntries`; state messages carry an `EntryBlob`, not an `Entries` slice.
+> - `transport.Transport` is implemented by `transport.TCP` and `transport.Memory` (`Network` with `Partition`, `Heal`, `Drop`, `SetDelay`, `FailNext`). Use `Memory` for the slow-peer and dropped-connection tests.
+> - `Send` after `Close` returns `transport: closed`. Drain the per-peer queues before calling `Close`.
+> - Cap the shard count at `wire.MaxShards` in config validation.
+> - See the carry-forward list in [[Backlog_Index#Status (updated 2026-11-10)|Backlog Index]].
+
 ## Overview
 Wire the store, versioning, transport, and peer set together into a node that replicates writes to every peer and hydrates from a peer at startup. Replaces [[archive/MS2-C_Replication_Buffers|MS2-C]], [[archive/MS3-A_Replication_Worker|MS3-A]], and [[archive/MS3-C_Hydration_Lifecycle|MS3-C]]. No worker pool, no dedup cache, no mutation buffering during hydration; see [[../rescope_v0.1|Rescope]] for why each was dropped.
 
