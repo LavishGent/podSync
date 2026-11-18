@@ -695,3 +695,46 @@ func TestCloseDuringHydrationStopsStart(t *testing.T) {
 		}
 	}
 }
+
+// hangOnceResolver blocks its first call until ctx ends (a cold DNS server
+// that never answers), then returns addrs.
+type hangOnceResolver struct {
+	mu    sync.Mutex
+	calls int
+	addrs []string
+}
+
+func (r *hangOnceResolver) Resolve(ctx context.Context) ([]string, error) {
+	r.mu.Lock()
+	r.calls++
+	first := r.calls == 1
+	r.mu.Unlock()
+	if first {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return append([]string(nil), r.addrs...), nil
+}
+
+// A resolution that hangs once must not use up the whole ResolveTimeout: a
+// later attempt succeeds, so the node hydrates instead of starting as a
+// "first node" with empty state.
+func TestHungFirstResolveRetriesAndHydrates(t *testing.T) {
+	net := transport.NewNetwork()
+	all := addrs("n", 2)
+	a := build(t, net, all[0], all, nil)
+	start(t, a)
+	for i := 0; i < 50; i++ {
+		_ = a.Set(context.Background(), fmt.Sprintf("k%d", i), "x", 0)
+	}
+
+	res := &hangOnceResolver{addrs: all}
+	b := build(t, net, all[1], all, func(c *Config[string, string]) {
+		c.Peers = peers.NewSet(res, all[1])
+		c.ResolveTimeout = 2 * time.Second
+	})
+	start(t, b)
+	if got := len(state(b)); got != 50 {
+		t.Fatalf("joiner has %d entries after Start, want 50 (started empty after a hung resolve)", got)
+	}
+}

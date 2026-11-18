@@ -375,12 +375,17 @@ func (n *Node[K, V]) awaitListening(ctx context.Context, listenErr <-chan error)
 }
 
 // resolveFirst refreshes the peer set until it succeeds or ResolveTimeout
-// passes.
+// passes. Each attempt gets a fifth of ResolveTimeout, so one lookup that
+// hangs (for example cluster DNS that is not serving yet) cannot use up the
+// whole budget and leave the node starting empty as a "first node".
 func (n *Node[K, V]) resolveFirst(ctx context.Context) {
 	rctx, cancel := context.WithTimeout(ctx, n.cfg.ResolveTimeout)
 	defer cancel()
+	attemptTimeout := max(n.cfg.ResolveTimeout/5, 10*time.Millisecond)
 	for {
-		err := n.peers.Refresh(rctx)
+		actx, acancel := context.WithTimeout(rctx, attemptTimeout)
+		err := n.peers.Refresh(actx)
+		acancel()
 		if err == nil {
 			return
 		}
