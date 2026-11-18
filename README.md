@@ -190,6 +190,15 @@ The replication port has no authentication by default: anything that can reach i
 
 The handshake proves the peer knows the secret. It does **not** encrypt traffic, authenticate frames after the handshake, or bind the handshake to an address, so an on-path attacker, or one who can make a real peer dial it, can relay a handshake. For confidentiality and stronger identity, use a service mesh (mTLS).
 
+## Failure Modes
+
+- **Repair is the safety net.** Fanout is best effort: a full queue drops its oldest mutation, a send can fail, a partition can last. Every `RepairInterval` (default 30s, jittered ±10%) each node pulls one random peer's state (and pushes its own when it holds fewer than `MaxStateEntries / 4` entries), so dropped fanout converges within a few intervals. The first tick after a node turns Ready fires after `FirstRepairDelay` (default 15s).
+- **A partition longer than `TombstoneTTL` can resurrect deleted keys.** Once a tombstone is swept, a peer that missed the delete still holds the old value and repair copies it back. Raise `TombstoneTTL` if that matters for your workload.
+- **A departed pod's entries live until their TTL.** There is no eviction on departure; entries written by a pod that left remain on the others until they expire or are overwritten.
+- **Operating envelope.** Repair and hydration move full state, one shard page at a time. Above `MaxStateEntries` (default 50k) the node logs a warning each round; see the T5 ticket for encode/decode timings.
+
+---
+
 ## What PodSync Is NOT For
 
 PodSync is explicit about its scope. Do not use it for:
