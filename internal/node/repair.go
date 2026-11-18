@@ -49,6 +49,6 @@ func (n *Node[K, V]) repairTick(ctx context.Context) {
 		return
 	}
 	if applied > 0 {
-		n.log.Debug("repaired", "peer", addr, "applied", applied)
+		n.log.Info("repaired", "peer", addr, "applied", applied)
 	}
 }

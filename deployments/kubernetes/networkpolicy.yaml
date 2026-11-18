@@ -17,4 +17,4 @@ spec:
               app: podsync-app
       ports:
         - protocol: TCP
-          port: 7946
+          port: 9090
