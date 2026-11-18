@@ -25,7 +25,7 @@ The v0.1 work is a stack of draft PRs. Each PR targets its parent branch. Nothin
 | T1 versioning and merge | [#8](https://github.com/LavishGent/podSync/pull/8) | `docs/v0.1-addendum` | Draft |
 | T2 wire encoding | [#9](https://github.com/LavishGent/podSync/pull/9) | `feat/T1-versioning-merge` | Draft, reviewed (3 rounds) |
 | T3 transport and peers | [#10](https://github.com/LavishGent/podSync/pull/10) | `feat/T2-wire-encoding` | Draft, reviewed (1 round, 2 blockers fixed) |
-| T4 replication and hydration | not started | `feat/T3-transport-peers` | Next |
+| T4 replication and hydration | not opened | `feat/T3-transport-peers` | In review (branch `feat/T4-replication-hydration`) |
 | T5 repair | not started | T4 branch | |
 | T6 public API, Kind demo, docs | not started | T5 branch | |
 

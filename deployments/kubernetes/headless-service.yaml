@@ -1,0 +1,26 @@
+# Headless Service that PodSync pods resolve to find each other.
+#
+# publishNotReadyAddresses: true is deliberate. A joining pod is not Ready
+# while it hydrates, and with the default (false) its peers would not see it in
+# DNS, so they would not fan writes out to it until kubelet marked it ready and
+# DNS caught up. The pod would miss every write in that window. Publishing
+# not-ready addresses lets peers send it mutations during hydration (a node
+# serves StateRequest and Mutation in every state except Closed). T5 repair
+# closes any residual gap, such as a peer whose DNS refresh has not yet seen the
+# pod. See docs/backlog/T4_Replication_Hydration.md.
+#
+# Example only: adjust the name, label, and port to your deployment.
+apiVersion: v1
+kind: Service
+metadata:
+  name: podsync-headless
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: podsync-app
+  ports:
+    - name: replication
+      protocol: TCP
+      port: 7946
+      targetPort: 7946

@@ -36,3 +36,6 @@ func (l *Lamport) Observe(v Version) {
 		}
 	}
 }
+
+// Current returns the clock's current value without advancing it.
+func (l *Lamport) Current() uint64 { return l.clock.Load() }
