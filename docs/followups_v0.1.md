@@ -3,7 +3,9 @@
 Non-blocking items found during review of the v0.1 stack (PRs #7 to #13). None blocks the POC. Each is a candidate for v0.2 or a small cleanup.
 
 ## Untested or unverified
-- **Kind demo has never run.** `deployment.yaml`, the Dockerfile and the `justfile` are untested because `kind`, `docker` and `just` were not installed. The `kubectl run --command` fix in `demo-hit` (`d86b365`) rests on the `kubectl` help text only. The local script `scripts/demo-local.sh` is the verified path.
+- **Kind demo ran once, Nov 2026.** With `kind`, `docker` and `just` installed, `just demo-up`, `demo-hit` (the `kubectl run --command` fix works), `demo-scale 5` and a pod delete all worked. The limit held across 3 pods and new pods hydrated (`entries=3`, then `entries=6` after a delete). Not exercised: NetworkPolicy enforcement (kind's default CNI does not enforce it) and partitions. `kubectl run` drops the first bytes of output, so `demo-hit` can show fewer than 12 lines.
+- **First-start DNS timeout (fixed).** On a cold cluster all 3 pods logged `peer resolution failed ... i/o timeout` for `podsync-headless`, started as "first node" with empty state and went `ready peers=0`. Cause: one hung lookup used the whole 5s `ResolveTimeout`, so there was no retry. Fixed by giving each attempt a fifth of `ResolveTimeout`; verified on Kind (cold cluster: `main` failed on all pods, the fix hydrated with `peers=2`). Still open: if DNS is down for the entire `ResolveTimeout`, the node starts empty until repair (about 15s).
+- **Not-ready wait with no live peers.** A pod started while all configured peers are down stays not-ready until `HydrationTimeout` (30s). This is by design, but the readiness probe holds the pod out of the Service for that time.
 - **Review fixes were not re-reviewed** for T3 (`Send`/`Close`, `Listen` hang), T4 (`Close` during `Start`) and T6 (`--command`), following the one-round rule.
 - **T5 had no fail-first test run.** Its tests and code were written together.
 
